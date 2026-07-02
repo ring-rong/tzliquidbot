@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     retry_attempts: int = 3
     retry_delay_seconds: float = 3.0
     crm_request_timeout_seconds: float = 10.0
+    redis_url: str = "redis://redis:6379/0"
 
 
 settings = Settings()
