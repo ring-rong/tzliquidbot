@@ -7,12 +7,13 @@
 - Проверен Mock-API вручную (`curl`): `200` от `POST /v1/leads`, эндпоинт живой.
 - Создана структура каталогов `lead-bot/app/...` с пустыми `__init__.py` (раздел 4 CLAUDE.md).
 - `git init`, `.gitignore`.
+- Фаза 1: `models/lead.py` (Lead/PreferredTime/CrmSuccessResponse/CrmErrorResponse),
+  `validators/name.py`, `validators/phone.py`. 25 юнит-тестов, все зелёные. Закоммичено.
 
 ## В процессе
-- Фаза 1: `models/lead.py`, `validators/name.py`, `validators/phone.py` + тесты.
+- Фаза 2: `crm_client.py` (асинхронный POST + retry) + respx-тесты.
 
 ## Дальше
-- Фаза 2: `crm_client.py` + respx-тесты.
 - Фаза 3: FSM + хендлеры.
 - Фаза 4: `main.py`/`config.py`, первый ручной прогон.
 - Фаза 5: Docker.
