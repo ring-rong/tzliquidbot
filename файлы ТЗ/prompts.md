@@ -1,4 +1,5 @@
 Использовал: Sonnet 5, claude code, самописный скилл /prompt-architect, MCP contex7
+
 Prompts:
 Claude.md:
 ## 1. КРИТИЧЕСКИ ВАЖНЫЕ ПРАВИЛА (не обсуждаются)
