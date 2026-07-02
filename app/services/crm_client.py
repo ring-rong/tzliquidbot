@@ -63,14 +63,32 @@ async def send_lead(
         else:
             if response.status_code in (200, 201):
                 try:
-                    return CrmSuccessResponse.model_validate(response.json())
-                except (ValueError, ValidationError) as exc:
+                    payload_json = response.json()
+                except ValueError as exc:
                     last_error = exc
                     logger.warning(
-                        "CRM вернула неожиданный формат успешного ответа (попытка %s): %r",
+                        "CRM вернула не-JSON тело на успешном статусе (попытка %s): %r",
                         attempt,
                         response.text,
                     )
+                else:
+                    try:
+                        return CrmSuccessResponse.model_validate(payload_json)
+                    except ValidationError as exc:
+                        # Валидный JSON, но не по контракту (например, Beeceptor вернул
+                        # шаблон {{...}} буквально) — это детерминированная проблема
+                        # конфигурации CRM, не временный сбой. Повтор даст тот же
+                        # результат, поэтому не ретраим (API_CONTRACT.md, раздел 5).
+                        logger.error(
+                            "CRM подтвердила приём (%s), но тело не соответствует "
+                            "контракту: %r — %s",
+                            response.status_code,
+                            response.text,
+                            exc,
+                        )
+                        raise CrmNonRetryableError(
+                            "CRM ответила успехом, но тело не соответствует контракту"
+                        ) from exc
             elif response.status_code in RETRYABLE_STATUS_CODES:
                 last_error = CrmRetryableError(_describe_error(response))
                 logger.warning(

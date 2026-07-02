@@ -43,6 +43,21 @@ def error_response(status_code: int, code: str, message: str) -> httpx.Response:
     )
 
 
+def unsubstituted_template_response() -> httpx.Response:
+    """200 с валидным JSON, но не по контракту — как реальный ответ Beeceptor,
+    когда шаблонизация выключена в правиле: request_id/received_at приходят
+    буквальной строкой `{{...}}` вместо UUID/datetime."""
+    return httpx.Response(
+        200,
+        json={
+            "status": "ok",
+            "lead_id": "lead_demo",
+            "request_id": "{{request.body.request_id}}",
+            "received_at": "{{now}}",
+        },
+    )
+
+
 @pytest.fixture(autouse=True)
 def fast_retries(monkeypatch):
     monkeypatch.setattr(settings, "retry_delay_seconds", 0.0)
@@ -140,3 +155,21 @@ async def test_non_retryable_status_fails_immediately_without_retry():
             await send_lead(lead, client=client)
 
     assert route.call_count == 1
+
+
+@respx.mock
+async def test_200_with_contract_violating_body_fails_immediately_without_retry():
+    lead = make_lead()
+    retry_calls: list[int] = []
+
+    async def on_retry(attempt: int) -> None:
+        retry_calls.append(attempt)
+
+    route = respx.post(CRM_URL).mock(side_effect=[unsubstituted_template_response()])
+
+    async with httpx.AsyncClient() as client:
+        with pytest.raises(CrmNonRetryableError):
+            await send_lead(lead, client=client, on_retry=on_retry)
+
+    assert route.call_count == 1
+    assert retry_calls == []
