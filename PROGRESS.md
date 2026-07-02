@@ -10,11 +10,14 @@
 - Фаза 1: `models/lead.py` (Lead/PreferredTime/CrmSuccessResponse/CrmErrorResponse),
   `validators/name.py`, `validators/phone.py`. 25 юнит-тестов, все зелёные. Закоммичено.
 
+- Фаза 2: `config.py` (Settings), `crm_client.py` (async POST + retry на 3
+  попытки/3 сек по `API_CONTRACT.md` разделу 5), 5 respx-тестов, все зелёные.
+  `ruff`/`black` без замечаний по всему проекту на этот момент.
+
 ## В процессе
-- Фаза 2: `crm_client.py` (асинхронный POST + retry) + respx-тесты.
+- Фаза 3: FSM + хендлеры + клавиатуры + тексты.
 
 ## Дальше
-- Фаза 3: FSM + хендлеры.
 - Фаза 4: `main.py`/`config.py`, первый ручной прогон.
 - Фаза 5: Docker.
 - Фаза 6: доказательства для DoD.
