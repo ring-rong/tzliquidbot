@@ -14,8 +14,13 @@
   попытки/3 сек по `API_CONTRACT.md` разделу 5), 5 respx-тестов, все зелёные.
   `ruff`/`black` без замечаний по всему проекту на этот момент.
 
+- Фаза 3: `states/lead_form.py`, `keyboards/`, `texts/messages.py`,
+  `handlers/{start,survey,confirm}.py`. Роутеры собраны в `app/handlers/__init__.py`.
+  Ручная проверка сборки роутера прошла (`from app.handlers import router`).
+  `ruff`/`black`/тесты (30/30) по-прежнему чистые.
+
 ## В процессе
-- Фаза 3: FSM + хендлеры + клавиатуры + тексты.
+- Фаза 4: `main.py`, первый ручной прогон бота (нужен `BOT_TOKEN`, см. открытые вопросы).
 
 ## Дальше
 - Фаза 4: `main.py`/`config.py`, первый ручной прогон.
