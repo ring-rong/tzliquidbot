@@ -1,0 +1,2783 @@
+╭─── Claude Code v2.1.198 ─────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│             Welcome back Nobody knows!             │ started                 │
+│                                                    │ Run /init to create a … │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ What's new              │
+│                        ▘▘ ▝▝                       │ Claude in Chrome is no… │
+│    Sonnet 5 · Claude Pro · k.vladdd@gmail.com's    │ Added background agent… │
+│    Organization                                    │ Added `/dataviz` skill… │
+│             ~/Desktop/work/TZ/lead-bot             │ /release-notes for more │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ▎ Fable 5 is back.
+ ▎ Until July 7, you can use up to 50% of your plan's weekly usage limit on Fable 5. If you hit your limit, you can continue on Fable 5 with usage credits. Fable 5 draws down usage faster than Opus 4.8. Learn more (https://support.claude.com/en/articles/15424964-claude-fable-5-promotional-access)
+
+❯ /model                                                                        
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+❯                                                                               
+  ## Контекст                                                                   
+   Mock-API уже поднят URL                                                      
+  \`https://mpfbba1a2c2708d21084.free.beeceptor.com/v1/leads\`,                 
+  weighted-правило                                                              
+  70% \`200\` / 20% \`500\` / 10% \`429\` с задержкой ~1.5–2 сек на успехе —    
+  уже проверено                                                                 
+  через \`curl\`, реально отдаёт и успех, и ошибки. Ты не создаёшь и не         
+  настраиваешь                                                                  
+  Mock-API — только используешь готовый URL через \`.env\`. Стек не выбирался   
+  явно —                                                                        
+  используй дефолтный рекомендованный в CLAUDE.md (раздел 3): Python 3.12,      
+  aiogram 3.x,                                                                  
+  httpx, Pydantic v2, Docker. Если по ходу работы найдёшь весомую причину       
+  отклониться —                                                                 
+  это можно, но зафиксируй развилку и обоснование в \`DEVLOG.md\`, не молча.    
+                                                                                
+  ## Цель (Definition of Done)                                                  
+                                                                                
+  - [ ] \`docker compose up --build\` в чистом окружении поднимает бота без     
+  ручных правок                                                                 
+        (проверить буквально — снести локальный venv/образы и поднять с нуля).  
+  - [ ] Полный user flow (\`/start\` → имя → телефон → время → сводная карточка 
+  →                                                                             
+        "Отправить заявку") пройден вручную в Telegram, со скриншотом/логом     
+  успешной                                                                      
+        отправки (реальный \`200\` от Mock-API, не мок теста).                  
+  - [ ] Retry-логика **реально показана**, не только описана: как минимум один  
+  прогон,                                                                       
+        где Mock-API ответил \`500\` или \`429\`, бот показал сообщение "Сервер 
+  CRM временно                                                                  
+        занят..." и повторил запрос — с логом/скриншотом этого момента, не с    
+  уверением                                                                     
+        "должно работать".                                                      
+  - [ ] Асинхронность проверена вручную: пока один тестовый чат ждёт ответа CRM 
+  (в т.ч.                                                                       
+        во время задержки/ретраев), второй тестовый чат получает ответ на       
+  \`/start\` без                                                                
+        задержки. Тут нужны два Telegram-аккаунта или тестовый + свой — как     
+  удобнее.                                                                      
+  - [ ] Юнит-тесты на \`validators/\` (граничные случаи имени/телефона) и на    
+        \`crm_client.py\` (respx-мок: \`200\` сразу, \`500→500→200\`,           
+  \`429×3→критический сбой\`)                                                   
+        — зелёные.                                                              
+  - [ ] \`README.md\` закрывает все 9 пунктов раздела 10 CLAUDE.md, включая     
+  честные                                                                       
+        "известные ограничения".                                                
+  - [ ] \`DEVLOG.md\` велся по ходу работы (не восстановлен в конце) — реальные 
+  развилки,                                                                     
+        а не причёсанный пересказ.                                              
+  - [ ] Полный чек-лист раздела 11 CLAUDE.md пройден и явно подтверждён в       
+  финальном                                                                     
+        отчёте (не "вроде всё ок", а по каждому пункту).                        
+                                                                                
+  ## Порядок работы (фазы)                                                      
+                                                                                
+  **Фаза 0 — старт.** Прочитать CLAUDE.md целиком, \`API_CONTRACT.md\` целиком. 
+  Создать                                                                       
+  \`PROGRESS.md\` с планом фаз ниже. Первый коммит — только структура каталогов 
+  из                                                                            
+  раздела 4 CLAUDE.md (пустые \`__init__.py\`), чтобы сразу закрепить           
+  модульность в git,                                                            
+  а не дописывать её постфактум.                                                
+                                                                                
+  **Фаза 1 — модели и валидаторы.** \`models/lead.py\` (Pydantic-модели из      
+  \`API_CONTRACT.md\`, раздел 6, включая \`PreferredTime\`, \`Lead\`,           
+  \`CrmSuccessResponse\`,                                                       
+  \`CrmErrorResponse\`), \`validators/name.py\`, \`validators/phone.py\`.       
+  Юнит-тесты сразу —                                                            
+  это самая простая часть для проверки изолированно, без Telegram и без сети.   
+  Коммит.                                                                       
+                                                                                
+  **Фаза 2 — crm_client.py.** Асинхронный POST через \`httpx.AsyncClient\`,     
+  retry-цикл                                                                    
+  строго по числам из раздела 2 CLAUDE.md (3 попытки, 3 секунды ожидания,       
+  \`asyncio.sleep\`, не блокирующий), различение retryable/non-retryable кодов  
+  (раздел 5                                                                     
+  \`API_CONTRACT.md\`). Тест на \`respx\` с тремя сценариями из DoD. Коммит.    
+                                                                                
+  **Фаза 3 — FSM и хендлеры.** \`states/lead_form.py\`, \`handlers/start.py\`,  
+  \`handlers/survey.py\`, \`handlers/confirm.py\`, \`keyboards/\`,              
+  \`texts/messages.py\` —                                                       
+  все пользовательские тексты вежливые, по разделу 6 CLAUDE.md, ни одного       
+  технического                                                                  
+  термина в чате. Коммит.                                                       
+                                                                                
+  **Фаза 4 — сборка \`main.py\` + \`config.py\`.** \`pydantic-settings\` из     
+  \`.env\`, включая                                                             
+  \`CRM_ENDPOINT_URL\` из раздела 2.1 CLAUDE.md. Первый ручной прогон бота      
+  локально (не                                                                  
+  в Docker ещё) — полный user flow, реальный запрос в Mock-API. Зафиксировать в 
+  \`DEVLOG.md\` результат первого прогона (что сработало/что нет).              
+                                                                                
+  **Фаза 5 — Docker.** \`Dockerfile\`, \`docker-compose.yml\`,                  
+  непривилегированный                                                           
+  пользователь, \`.dockerignore\`. Снести и поднять с нуля — это буквальная     
+  проверка DoD                                                                  
+  пункта 1, не формальность.                                                    
+                                                                                
+  **Фаза 6 — доказательства для DoD.** Прогнать сценарии                        
+  успеха/ретрая/параллельности                                                  
+  из DoD выше, зафиксировать логи/скриншоты. Если с первого раза не поймался    
+  \`500\`/\`429\`                                                               
+  — это статистика весов (20%/10%), просто повторить несколько отправок подряд. 
+                                                                                
+  **Фаза 7 — README + DEVLOG + самопроверка по разделу 8** ("мусор от ИИ")      
+  CLAUDE.md —                                                                   
+  явный проход по чек-листу, не пропуская. Финальный коммит.                    
+                                                                                
+  ## Жёсткие рамки                                                              
+                                                                                
+  - Никаких дополнительных интеграций сверх ТЗ (без Redis, без БД под заявки,   
+  без                                                                           
+    админ-панели) — это не входит в скоуп тестового задания, добавление "на     
+  всякий                                                                        
+    случай" — то самое переусложнение из раздела 8 CLAUDE.md.                   
+  - Не трогать \`API_CONTRACT.md\` и настройки самого Beeceptor-эндпоинта — они 
+  уже                                                                           
+    готовы и подтверждены владельцем (раздел 2.1). Если получаешь неожиданный   
+  ответ от                                                                      
+    Mock-API — сначала диагностируй на своей стороне (URL, тело запроса,        
+  заголовки),                                                                   
+    прежде чем предполагать, что мок сломан.                                    
+  - Секреты (\`BOT_TOKEN\`) — только через \`.env\`, никогда в                  
+  код/коммиты/логи.                                                             
+  - Стек фиксируется в начале Фазы 1 и не меняется на середине работы без явной 
+  записи                                                                        
+    в \`DEVLOG.md\`, почему.                                                    
+                                                                                
+  ## При затыке                                                                 
+                                                                                
+  - Синтаксис aiogram 3.x / Pydantic v2 не по памяти — сверяйся с               
+  \`requirements.txt\`,                                                         
+    который сам зафиксировал, и с официальной документацией (правило 1.6        
+  CLAUDE.md).                                                                   
+  - Если Mock-API ведёт себя не так, как в \`API_CONTRACT.md\` (например,       
+  эндпоинт стал                                                                 
+    недоступен из-за 90-дневной политики Beeceptor) — это единственный случай,  
+  когда                                                                         
+    нужно остановиться и спросить владельца, а не пытаться "починить" внешний   
+  сервис                                                                        
+    самостоятельно.                                                             
+  - Любая находка длиннее пары минут отладки — сразу в \`DEVLOG.md\`, не        
+  откладывать до                                                                
+    конца фазы (правило "пиши сразу", раздел 9 CLAUDE.md).                      
+                                                                                
+  ## Что отдать в конце                                                         
+                                                                                
+  Рабочий репозиторий с чистой историей коммитов по фазам, \`README.md\`,       
+  \`DEVLOG.md\`,                                                                
+  пройденный чек-лист раздела 11 CLAUDE.md с явным статусом по каждому пункту,  
+  и честный                                                                     
+  итоговый отчёт: что сделано, что упрощено и почему, что осталось бы доделать  
+  при                                                                           
+  больших сроках.                                                               
+
+  Searched for 1 pattern, read 1 file, listed 1 directory (ctrl+o to expand)
+
+● API_CONTRACT.md isn't in the working directory — only claude.md exists (36KB,
+  matches the spec you referenced: rules, stack, structure, DEVLOG/README
+  requirements). Phase 0 requires reading it in full before Phase 1 can even
+  define models/lead.py correctly (PreferredTime, Lead, CrmSuccessResponse,
+  CrmErrorResponse field names/types, and the retryable-code rules in its
+  section 5). I don't want to guess those shapes.
+
+  Could you drop API_CONTRACT.md into /home/tony/Desktop/work/TZ/, or paste its
+  contents?
+
+✻ Churned for 21s
+
+❯ готово, проверяй                                                              
+
+  Listed 1 directory (ctrl+o to expand)
+
+● API_CONTRACT.md is there now. Reading it in full before starting.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Mock-API is alive and responding. Now checking tooling and whether there's a
+  bot token available before starting the build.
+
+  Ran 8 shell commands (ctrl+o to expand)
+
+● Good — I can bootstrap a working venv with pip this way. That solves local
+  dependency installation and test running, even though Docker itself isn't
+  available in this sandbox.
+
+  Ran 1 shell command (ctrl+o to expand)
+● I have both spec files now, confirmed the Mock-API is live (200), and
+  bootstrapped a working Python venv (no system pip was preinstalled). Two
+  things I can't do from this sandbox: run Docker (no daemon here) or drive an
+  actual Telegram client (no bot token, no phone-verified accounts) — those
+  pieces of the DoD need to happen on your machine. I'll build and test
+  everything else here, then hand you an exact checklist for the Docker/Telegram
+  parts. Starting Phase 0.
+
+  Ran 5 shell commands (ctrl+o to expand)
+
+● No global git identity configured. I'll set a local one for this repo using
+  your email.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now writing .gitignore and PROGRESS.md, then the first commit (empty module
+  skeleton only, per Phase 0 instructions).
+
+● Write(.gitignore)
+  ⎿  Wrote 9 lines to .gitignore
+      1 .env
+      2 __pycache__/
+      3 *.pyc
+      4 .pytest_cache/
+      5 .venv/
+      6 venv/
+      7 *.egg-info/
+      8 .ruff_cache/
+      9 .mypy_cache/
+
+● Write(PROGRESS.md)
+  ⎿  Wrote 29 lines to PROGRESS.md
+      1 # PROGRESS
+      2 
+      3 Статус на: 2026-07-02, старт работы.
+      4 
+      5 ## Сделано
+      7 - Проверен Mock-API вручную (`curl`): `200` от `POST /v1/leads`, 
+        эндпоинт живой.
+      8 - Создана структура каталогов `lead-bot/app/...` с пустыми `__ini
+        t__.py` (раздел 4 CLAUDE.md).
+      9 - `git init`, `.gitignore`.
+     … +28 lines (ctrl+o to expand)
+
+● Write(DEVLOG.md)
+  ⎿  Wrote 31 lines to DEVLOG.md
+      1 # DEVLOG
+      2 
+      3 ## [Фаза 0] Старт, окружение разработки
+      5 Решение/что сделано:
+      6 Прочитал `CLAUDE.md` и `API_CONTRACT.md` целиком. Проверил Mock-A
+        PI вручную
+      7 (`curl -X POST .../v1/leads`) — получил `200`, эндпоинт живой и о
+        твечает как описано
+        /**` с пустыми
+      9 `__init__.py`, `git init`, `.gitignore`.
+     … +40 lines (ctrl+o to expand)
+
+  Committed fbd3700 (ctrl+o to expand)
+
+● Phase 0 done. Moving to Phase 1: models and validators.
+
+  Called context7 10 times, ran 2 shell commands (ctrl+o to expand)
+
+● Write(requirements.txt)
+  ⎿  Wrote 5 lines to requirements.txt
+      1 aiogram==3.29.1
+      2 httpx==0.28.1
+      3 pydantic==2.13.4
+      4 pydantic-settings==2.14.2
+      5 python-dotenv==1.2.2
+
+● Write(requirements-dev.txt)  ⎿  Wrote 6 lines to requirements-dev.txt
+      1 -r requirements.txt
+      2 pytest==9.1.1
+      3 pytest-asyncio==1.4.0
+      4 respx==0.23.1
+      5 ruff==0.15.20
+      6 black==26.5.1
+
+● Now the Pydantic models per API_CONTRACT.md section 6.
+
+● Write(app/models/lead.py)
+  ⎿  Wrote 40 lines to app/models/lead.py
+       1 from datetime import datetime
+       2 from enum import StrEnum
+       3 from uuid import UUID, uuid4
+       4 
+       5 from pydantic import BaseModel, Field
+       6 
+       7 
+       8 class PreferredTime(StrEnum):
+       9     MORNING = "morning"
+      10     AFTERNOON = "afternoon"
+     … +31 lines (ctrl+o to expand)
+
+● Write(app/validators/name.py)
+  ⎿  Wrote 23 lines to app/validators/name.py
+       1 NAME_MIN_LENGTH = 2
+       2 NAME_MAX_LENGTH = 50
+       3 
+       4 
+       5 class NameValidationError(Exception):
+          показа пользователю."""
+       7 
+       8 
+       9 def validate_name(raw: str) -> str:
+      10     name = raw.strip()
+     … +14 lines (ctrl+o to expand)
+
+● Write(app/validators/phone.py)
+  ⎿  Wrote 29 lines to app/validators/phone.py
+       1 import re
+       2 
+          345-67-89", "89123456789"
+       4 # Невалидные примеры: "123", "+7 912 345-67", "8-912-345-67-8Х",
+          "abc"
+       6     r"^(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]
+         ?\d{2}$"
+       7 )
+       9 
+      10 class PhoneValidationError(Exception):
+     … +25 lines (ctrl+o to expand)
+
+● Now updating models/lead.py to reuse the name-length constants instead of
+  duplicating the magic numbers:
+
+● Update(app/models/lead.py)
+  ⎿  Added 3 lines, removed 1 line
+       4  
+       5  from pydantic import BaseModel, Field
+       6  
+       7 +from app.validators.name import NAME_MAX_LENGTH, NAME_MIN_LENGT
+         +H                                                              
+       8  
+       9 +                                                               
+      10  class PreferredTime(StrEnum):
+      11      MORNING = "morning"
+      12      AFTERNOON = "afternoon"
+     ...
+      17      """Заявка лида — отправляется в тело POST /v1/leads (API_CO
+          NTRACT.md, раздел 1)."""
+      18  
+      19      request_id: UUID = Field(default_factory=uuid4)
+      18 -    name: str = Field(min_length=2, max_length=50)             
+      20 +    name: str = Field(min_length=NAME_MIN_LENGTH, max_length=NA
+         +ME_MAX_LENGTH)                                                 
+      21      phone: str
+      22      preferred_time: PreferredTime
+      23      source: str = "telegram_bot"
+
+● Now writing the boundary-case unit tests for validators.
+
+● Write(tests/test_validators.py)
+  ⎿  Wrote 91 lines to tests/test_validators.py
+      1 import pytest
+      2 
+      3 from app.validators.name import NAME_MAX_LENGTH, NAME_MIN_LENGTH,
+         NameValidationError, validate_name
+      4 from app.validators.phone import PhoneValidationError, validate_p
+      5 
+      6 
+      7 class TestValidateName:
+      8     def test_strips_surrounding_whitespace(self):
+      9         assert validate_name("  Иван  ") == "Иван"
+     … +84 lines (ctrl+o to expand)
+
+● Now installing dependencies into the venv and running the validator tests.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● All 25 pass. Quick sanity check on the model import, then commit Phase 1.
+
+  Committed 91bb83e, ran 1 shell command (ctrl+o to expand)
+
+● Update(DEVLOG.md)
+  ⎿  Added 24 lines
+      29  спецификации, но не собраны и не запущены мной), и явно задокум
+          ентировать в README и
+      30  здесь, какие именно шаги DoD должен выполнить владелец на своей
+           машине, с точными
+      31  командами. Зафиксировано также в `PROGRESS.md`.
+      32 +                                                               
+      33 +## [Фаза 1] Модели и валидаторы                                
+      34 +                                                               
+      35 +Решение/что сделано:                                           
+      36 +`app/models/lead.py` — дословно по разделу 6 `API_CONTRACT.md` 
+         +(`Lead`, `PreferredTime`,                                      
+      37 +`CrmError`, `CrmErrorResponse`, `CrmSuccessResponse`). `validat
+         +ors/name.py` — 2–50                                            
+      38 +символов после `.strip()`, без ограничения на алфавит (дефисы/а
+         +построфы разрешены).                                           
+      39 +`validators/phone.py` — один regex на `+7`/`8` + 10 цифр в разн
+         +ых группировках                                                
+      40 +пробелами/дефисами/скобками, нормализация к `+7XXXXXXXXXX`. 25 
+         +юнит-тестов на граничные                                       
+      41 +случаи (`tests/test_validators.py`), все зелёные.              
+      42 +                                                               
+      43 +Почему так, а не иначе:                                        
+      44 +Константы `NAME_MIN_LENGTH`/`NAME_MAX_LENGTH` вынесены в `valid
+         +ators/name.py` и                                               
+      45 +переиспользованы в `Field(min_length=..., max_length=...)` моде
+         +ли `Lead` — единственный                                       
+      46 +источник истины вместо дублирования "2"/"50" в двух файлах (раз
+         +дел 8 CLAUDE.md,                                               
+      47 +магические числа). Regex телефона намеренно **не** принимает 10
+         +-значный номер без                                             
+      48 +префикса `7`/`8` (например, голый `9123456789`) — в ТЗ явно пер
+         +ечислены только три                                            
+      49 +формата с префиксом, расширять сверх этого — то самое "предполо
+         +жение сверх ТЗ".                                               
+      50 +                                                               
+      51 +Что пошло не так, если пошло, и как исправлено:                
+      52 +Ничего непредвиденного — сверился с Context7 по `field_validato
+         +r`/`StringConstraints`                                         
+      53 +Pydantic v2 перед началом (раздел 1.5), но в итоге хватило штат
+         +ных `Field(min_length=,                                        
+      54 +max_length=)` без кастомных валидаторов на уровне модели — вали
+         +дация сделана заранее в                                        
+      55 +`validators/`, модель только фиксирует контракт с CRM.         
+
+● Update(PROGRESS.md)
+  ⎿  Added 3 lines, removed 2 lines
+       7  - Проверен Mock-API вручную (`curl`): `200` от `POST /v1/leads`
+          , эндпоинт живой.
+       8  - Создана структура каталогов `lead-bot/app/...` с пустыми `__i
+          nit__.py` (раздел 4 CLAUDE.md).
+       9  - `git init`, `.gitignore`.
+      10 +- Фаза 1: `models/lead.py` (Lead/PreferredTime/CrmSuccessRespon
+         +se/CrmErrorResponse),                                          
+      11 +  `validators/name.py`, `validators/phone.py`. 25 юнит-тестов, 
+         +все зелёные. Закоммичено.                                      
+      12  
+      13  ## В процессе
+      12 -- Фаза 1: `models/lead.py`, `validators/name.py`, `validators/p
+         -hone.py` + тесты.                                              
+      14 +- Фаза 2: `crm_client.py` (асинхронный POST + retry) + respx-те
+         +сты.                                                           
+      15  
+      16  ## Дальше
+      15 -- Фаза 2: `crm_client.py` + respx-тесты.                       
+      17  - Фаза 3: FSM + хендлеры.
+      18  - Фаза 4: `main.py`/`config.py`, первый ручной прогон.
+      19  - Фаза 5: Docker.
+
+  Committed 68f3ed4 (ctrl+o to expand)
+
+● Phase 1 complete (25/25 tests green). Moving to Phase 2: the CRM client with
+  retry logic.
+
+● Write(app/config.py)
+  ⎿  Wrote 15 lines to app/config.py
+       1 from pydantic import HttpUrl
+       2 from pydantic_settings import BaseSettings, SettingsConfigDict
+       3 
+       4 
+       5 class Settings(BaseSettings):
+         encoding="utf-8")
+       7 
+       8     bot_token: str
+       9     crm_endpoint_url: HttpUrl
+      10     retry_attempts: int = 3
+     … +6 lines (ctrl+o to expand)
+
+● Now the crm_client.py with the retry logic:
+
+● Write(app/services/crm_client.py)
+  ⎿  Wrote 99 lines to app/services/crm_client.py
+      1 import asyncio
+      2 import logging
+      3 from collections.abc import Awaitable, Callable
+      4 
+      5 import httpx
+      6 from pydantic import ValidationError
+      7 
+      8 from app.config import settings
+      9 from app.models.lead import CrmErrorResponse, CrmSuccessResponse,
+         Lead
+     … +103 lines (ctrl+o to expand)
+● Write(tests/conftest.py)
+  ⎿  Wrote 6 lines to tests/conftest.py
+      1 import os
+      2 
+      3 # Тестовые заглушки, не секреты — нужны, чтобы app.config.Setting
+        s() успешно
+      4 # сконструировался при импорте до того, как тесты успеют что-либо
+         замокать.
+      5 os.environ.setdefault("BOT_TOKEN", "000000:test-token-for-unit-te
+        sts")
+      6 os.environ.setdefault("CRM_ENDPOINT_URL", "https://example.test/v
+        1/leads")
+
+● Write(pyproject.toml)
+  ⎿  Wrote 13 lines to pyproject.toml
+      1 [tool.pytest.ini_options]
+      2 asyncio_mode = "auto"
+      3 
+      4 [tool.ruff]
+      5 line-length = 100
+      6 target-version = "py312"
+      7 
+      8 [tool.ruff.lint]
+      9 select = ["E", "F", "I", "UP", "B"]
+     … +3 lines (ctrl+o to expand)
+
+● Write(tests/test_crm_client.py)
+  ⎿  Wrote 142 lines to tests/test_crm_client.py
+       1 from datetime import UTC, datetime
+       2 
+       3 import httpx
+       4 import pytest
+       5 import respx
+       7 from app.config import settings
+       8 from app.models.lead import CrmSuccessResponse, PreferredTime, L
+         ead
+       9 from app.services.crm_client import (
+      10     CrmDeliveryFailed,
+     … +143 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 30 tests pass. Running ruff/black now to catch style issues early.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I'll let ruff/black auto-fix formatting rather than hand-tune it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Black exposed that my manually-wrapped f-strings became odd adjacent-literal
+  concatenations. Cleaning those to single f-strings.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(app/validators/name.py)
+  ⎿  Added 2 lines, removed 2 lines
+      11  
+      12      if len(name) < NAME_MIN_LENGTH:
+      13          raise NameValidationError(
+      14 -            f"Имя слишком короткое — введите, пожалуйста, не ме
+         -нее " f"{NAME_MIN_LENGTH} символов."                           
+      14 +            f"Имя слишком короткое — введите, пожалуйста, не ме
+         +нее {NAME_MIN_LENGTH} символов."                               
+      15          )
+      16      if len(name) > NAME_MAX_LENGTH:
+      17          raise NameValidationError(
+      18 -            f"Имя слишком длинное — уложитесь, пожалуйста, в " 
+         -f"{NAME_MAX_LENGTH} символов."                                 
+      18 +            f"Имя слишком длинное — уложитесь, пожалуйста, в {N
+         +AME_MAX_LENGTH} символов."                                     
+      19          )
+      20  
+      21      return name
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(app/services/crm_client.py)
+  ⎿  Added 1 line, removed 1 line
+      67                  except (ValueError, ValidationError) as exc:
+      68                      last_error = exc
+      69                      logger.warning(
+      70 -                        "CRM вернула неожиданный формат успешно
+         -го ответа " "(попытка %s): %r",                                
+      70 +                        "CRM вернула неожиданный формат успешно
+         +го ответа (попытка %s): %r",                                   
+      71                          attempt,
+      72                          response.text,
+      73                      )
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Clean. Committing Phase 2.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(DEVLOG.md)
+  ⎿  Added 37 lines
+      53  Pydantic v2 перед началом (раздел 1.5), но в итоге хватило штат
+          ных `Field(min_length=,
+      54  max_length=)` без кастомных валидаторов на уровне модели — вали
+          дация сделана заранее в
+      55  `validators/`, модель только фиксирует контракт с CRM.
+      56 +                                                               
+      57 +## [Фаза 2] crm_client.py — retry-логика                       
+      58 +                                                               
+      59 +Решение/что сделано:                                           
+      60 +Создал `app/config.py` (`Settings` на `pydantic-settings`) рань
+         +ше, чем формально                                              
+      61 +запланировано на Фазу 4 — структура проекта (раздел 4 CLAUDE.md
+         +) явно требует, чтобы                                          
+      62 +`RETRY_ATTEMPTS`/`RETRY_DELAY_SECONDS` жили в `config.py`, а не
+         + были захардкожены в                                           
+      63 +`crm_client.py`, так что без него Фаза 2 не собиралась логическ
+         +и. `send_lead()` в                                             
+      64 +`crm_client.py` — асинхронный POST через `httpx.AsyncClient`, ц
+         +икл на 3 попытки,                                              
+      65 +`asyncio.sleep(3)` между ними (не блокирует event loop), различ
+         +ает retryable                                                  
+      66 +(429/500/502/503 + сетевые ошибки) и non-retryable (всё остальн
+         +ое, например 422) коды                                         
+      67 +по разделу 5 `API_CONTRACT.md`. Уведомление о ретрае вынесено в
+         + инжектируемый                                                 
+      68 +async-callback `on_retry(attempt)`, а не захардкожено в клиенте
+         + — `crm_client.py`                                             
+      69 +ничего не знает про Telegram/тексты сообщений, эту связь соберё
+         +т хендлер в Фазе 3.                                            
+      70 +5 respx-тестов (`tests/test_crm_client.py`): успех с первой поп
+         +ытки, 500→500→200,                                             
+      71 +429×3→`CrmDeliveryFailed`, сетевой таймаут ведёт себя как 500, 
+         +422 падает сразу без                                           
+      72 +ретраев. Все зелёные.                                          
+      73 +                                                               
+      74 +Почему так, а не иначе:                                        
+      75 +`httpx.AsyncClient` вместо `aiohttp` — как зафиксировано в разд
+         +еле 3 CLAUDE.md                                                
+      76 +(рекомендованный дефолт), плюс сверился с Context7 по `AsyncCli
+         +ent`/таймаутам, отклонений                                     
+      77 +не потребовалось. Отдельные исключения `CrmRetryableError`/`Crm
+         +NonRetryableError`/                                            
+      78 +`CrmDeliveryFailed` вместо кортежей/`None`-возвратов — чтобы хе
+         +ндлер в Фазе 3 мог                                             
+      79 +`except` по смыслу ошибки, а не парсить строки. `_describe_erro
+         +r()` — общая точка                                             
+      80 +парсинга `CrmErrorResponse` с фоллбэком на сырой текст при нева
+         +лидном JSON (раздел 6                                          
+      81 +`API_CONTRACT.md` про "не парсится как JSON — тоже relayable"),
+         + переиспользуется и                                            
+      82 +для retryable, и для non-retryable веток, чтобы не дублировать 
+         +логику парсинга.                                               
+      83 +                                                               
+      84 +Что пошло не так, если пошло, и как исправлено:                
+      85 +Первая версия сообщений об ошибке была написана как перенос стр
+         +оки с двумя соседними                                          
+      86 +f-строками (`f"..." f"..."`) — `black` реформатировал это в одн
+         +у строку и стало видно,                                        
+      87 +что это следы ручного переноса, а не осознанный код. Убрал иску
+         +сственный перенос,                                             
+      88 +оставил одну f-строку — мелочь, но именно то, что раздел 8 CLAU
+         +DE.md называет                                                 
+      89 +"мусором от ИИ", если бы осталось незамеченным. Для тестов пона
+         +добился `tests/conftest.py`                                    
+      90 +с фиктивными `BOT_TOKEN`/`CRM_ENDPOINT_URL` в `os.environ` (не 
+         +секреты, просто заглушки) —                                    
+      91 +иначе `app.config.Settings()` падает при импорте без реального 
+         +`.env`, а `.env` в                                             
+      92 +репозитории быть не должно.                                    
+
+● Update(PROGRESS.md)
+  ⎿  Added 5 lines, removed 2 lines
+      10  - Фаза 1: `models/lead.py` (Lead/PreferredTime/CrmSuccessRespon
+          se/CrmErrorResponse),
+      11    `validators/name.py`, `validators/phone.py`. 25 юнит-тестов, 
+          все зелёные. Закоммичено.
+      12  
+      13 +- Фаза 2: `config.py` (Settings), `crm_client.py` (async POST +
+         + retry на 3                                                    
+      14 +  попытки/3 сек по `API_CONTRACT.md` разделу 5), 5 respx-тестов
+         +, все зелёные.                                                 
+      15 +  `ruff`/`black` без замечаний по всему проекту на этот момент.
+      16 +                                                               
+      17  ## В процессе
+      14 -- Фаза 2: `crm_client.py` (асинхронный POST + retry) + respx-те
+         -сты.                                                           
+      18 +- Фаза 3: FSM + хендлеры + клавиатуры + тексты.                
+      19  
+      20  ## Дальше
+      17 -- Фаза 3: FSM + хендлеры.                                      
+      21  - Фаза 4: `main.py`/`config.py`, первый ручной прогон.
+      22  - Фаза 5: Docker.
+      23  - Фаза 6: доказательства для DoD.
+
+  Committed df095c2 (ctrl+o to expand)
+
+● Phase 2 done — retry logic verified with 5 green respx tests. Moving to Phase
+  3: FSM states, handlers, keyboards, and message texts.
+
+  Called context7 (ctrl+o to expand)
+
+● Write(app/states/lead_form.py)
+  ⎿  Wrote 8 lines to app/states/lead_form.py
+      1 from aiogram.fsm.state import State, StatesGroup
+      2 
+      3 
+      4 class LeadForm(StatesGroup):
+      5     name = State()
+      6     phone = State()
+      7     time = State()
+      8     confirm = State()
+● Write(app/keyboards/time_kb.py)
+  ⎿  Wrote 28 lines to app/keyboards/time_kb.py
+       1 from aiogram.types import InlineKeyboardButton, InlineKeyboardMa
+         rkup
+       2 
+       3 from app.models.lead import PreferredTime
+       4 
+       6 
+       7 _TIME_LABELS: dict[PreferredTime, str] = {
+       8     PreferredTime.MORNING: "Утро",
+       9     PreferredTime.AFTERNOON: "День",
+      10     PreferredTime.EVENING: "Вечер",
+     … +19 lines (ctrl+o to expand)
+
+● Write(app/keyboards/confirm_kb.py)
+  ⎿  Wrote 23 lines to app/keyboards/confirm_kb.py
+       1 from aiogram.types import InlineKeyboardButton, InlineKeyboardMa
+         rkup
+       2 
+       3 CONFIRM_SEND = "confirm:send"
+       4 CONFIRM_RESTART = "confirm:restart"
+       6 
+       7 
+       8 def confirm_keyboard() -> InlineKeyboardMarkup:
+       9     return InlineKeyboardMarkup(
+      10         inline_keyboard=[
+     … +17 lines (ctrl+o to expand)
+
+● Now the texts module — every user-facing string in one place:
+
+● Write(app/texts/messages.py)
+  ⎿  Wrote 55 lines to app/texts/messages.py
+       1 from app.keyboards.time_kb import time_label
+       2 from app.models.lead import PreferredTime
+       3 
+       5     "Здравствуйте! Я помогу оставить заявку на консультацию — эт
+         о займёт меньше "
+       6     "минуты. Мне понадобится Ваше имя, номер телефона и удобное 
+         время для звонка. "
+       7     "Начнём?\n\nКак к Вам обращаться?"
+       9 
+      10 ASK_PHONE = (
+     … +56 lines (ctrl+o to expand)
+
+● Write(app/handlers/start.py)
+  ⎿  Wrote 16 lines to app/handlers/start.py
+      1 from aiogram import Router
+      2 from aiogram.filters import CommandStart
+      3 from aiogram.fsm.context import FSMContext
+      4 from aiogram.types import Message
+      5 
+      6 from app.states.lead_form import LeadForm
+      7 from app.texts import messages
+      8 
+      9 router = Router(name="start")
+     … +6 lines (ctrl+o to expand)
+
+● Write(app/handlers/survey.py)
+  ⎿  Wrote 70 lines to app/handlers/survey.py
+       1 from uuid import uuid4
+       2 
+       3 from aiogram import F, Router
+       4 from aiogram.fsm.context import FSMContext
+       5 from aiogram.types import CallbackQuery, Message
+       7 from app.keyboards.confirm_kb import confirm_keyboard
+       8 from app.keyboards.time_kb import TIME_CALLBACK_PREFIX, time_key
+         board
+       9 from app.models.lead import PreferredTime
+      10 from app.states.lead_form import LeadForm
+     … +68 lines (ctrl+o to expand)
+
+● Write(app/handlers/confirm.py)
+  ⎿  Wrote 60 lines to app/handlers/confirm.py
+       1 import logging
+       2 from datetime import UTC, datetime
+       3 
+       4 import httpx
+       5 from aiogram import F, Router
+       7 from aiogram.types import CallbackQuery
+       8 
+       9 from app.keyboards.confirm_kb import CONFIRM_RESTART, CONFIRM_RE
+         TRY, CONFIRM_SEND, retry_keyboard
+      10 from app.models.lead import Lead, PreferredTime
+     … +62 lines (ctrl+o to expand)
+
+● Now the router aggregation in handlers/__init__.py:
+
+● Write(app/handlers/__init__.py)
+  ⎿  Error writing file
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(app/handlers/__init__.py)
+  ⎿  Wrote 10 lines to app/handlers/__init__.py
+       1 from aiogram import Router
+       2 
+       3 from app.handlers.confirm import router as confirm_router
+       4 from app.handlers.start import router as start_router
+       5 from app.handlers.survey import router as survey_router
+       6 
+       7 router = Router(name="root")
+       8 router.include_router(start_router)
+       9 router.include_router(survey_router)
+      10 router.include_router(confirm_router)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Expected outside pytest — set the required env vars for this manual sanity
+  check.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Good, wiring works. Now running lint/format and the full test suite.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Update(DEVLOG.md)
+  ⎿  Added 35 lines
+       90  с фиктивными `BOT_TOKEN`/`CRM_ENDPOINT_URL` в `os.environ` (не
+            секреты, просто заглушки) —
+       91  иначе `app.config.Settings()` падает при импорте без реального
+            `.env`, а `.env` в
+       92  репозитории быть не должно.
+       93 +                                                              
+       94 +## [Фаза 3] FSM, хендлеры, клавиатуры, тексты                 
+       95 +                                                              
+       96 +Решение/что сделано:                                          
+       97 +`states/lead_form.py` — `LeadForm(StatesGroup)` с состояниями 
+          +`name → phone → time →                                        
+       98 +confirm`. `keyboards/time_kb.py` — инлайн-клавиатура Утро/День
+          +/Вечер с маппингом на                                         
+       99 +`PreferredTime` (по API_CONTRACT.md, маппинг живёт здесь, не в
+          + хендлере).                                                   
+      100 +`keyboards/confirm_kb.py` — клавиатуры "Отправить/Заполнить за
+          +ново" и "Попробовать                                          
+      101 +снова/Заполнить заново" для сводной карточки и экрана сбоя. `t
+          +exts/messages.py` — все                                       
+      102 +пользовательские тексты одним модулем, форма "Вы", без канцеля
+          +рита; ретрай-текст                                            
+      103 +берётся из ТЗ дословно на первой попытке, на второй чуть варьи
+          +руется, смысл сохранён.                                       
+      104 +`handlers/start.py`, `handlers/survey.py`, `handlers/confirm.p
+          +y` — пошаговый опрос с                                        
+      105 +повторным запросом поля при невалидном вводе (без потери уже п
+          +ринятых полей — просто                                        
+      106 +не продвигаем FSM дальше), финальная отправка через `crm_clien
+          +t.send_lead()`.                                               
+      107 +                                                              
+      108 +Почему так, а не иначе:                                       
+      109 +`request_id` для `Lead` генерируется один раз — в момент показ
+          +а сводной карточки                                            
+      110 +(`survey.py::process_time_choice`), кладётся в FSM-данные и пе
+          +реиспользуется при каждом                                     
+      111 +повторном клике "Попробовать снова" на экране критического сбо
+          +я, а не создаётся заново                                      
+      112 +при каждой попытке отправки. Это соответствует духу идемпотент
+          +ности из раздела 1                                            
+      113 +`API_CONTRACT.md` ("один и тот же request_id... на карточку за
+          +явки") — расширил его не                                      
+      114 +только на 3 внутренних ретрая `crm_client.py`, но и на ручные 
+          +повторные попытки                                             
+      115 +пользователя с той же карточкой, пока он не нажал "Заполнить з
+          +аново" (это явно новая                                        
+      116 +карточка — там генерируется новый `request_id`). Уведомление о
+          + ретрае передаётся в                                          
+      117 +`send_lead()` как `on_retry`-колбэк, который в хендлере просто
+          + шлёт сообщение в чат —                                       
+      118 +`crm_client.py` остаётся без единого упоминания aiogram/Telegr
+          +am. Общая функция                                             
+      119 +`_submit_lead()` переиспользуется и для "Отправить", и для "По
+          +пробовать снова" —                                            
+      120 +чтобы не дублировать сборку `Lead`/обработку исключений в двух
+          + хендлерах.                                                   
+      121 +                                                              
+      122 +Что пошло не так, если пошло, и как исправлено:               
+      123 +Ничего непредвиденного. Сверился с Context7 по актуальному aio
+          +gram 3.x FSM-паттерну                                         
+      124 +(`StatesGroup`/`FSMContext.set_state`/`update_data`) и по спос
+          +обу инъекции                                                  
+      125 +`http_client` в хендлеры через `dp.start_polling(bot, http_cli
+          +ent=...)` — в памяти                                          
+      126 +было по aiogram 2.x, синтаксис действительно другой в 3.x, как
+          + и предупреждает раздел 1.5                                   
+      127 +CLAUDE.md.                                                    
+
+● Update(PROGRESS.md)
+  ⎿  Added 6 lines, removed 1 line
+      14    попытки/3 сек по `API_CONTRACT.md` разделу 5), 5 respx-тестов
+          , все зелёные.
+      15    `ruff`/`black` без замечаний по всему проекту на этот момент.
+      16  
+      17 +- Фаза 3: `states/lead_form.py`, `keyboards/`, `texts/messages.
+         +py`,                                                           
+      18 +  `handlers/{start,survey,confirm}.py`. Роутеры собраны в `app/
+         +handlers/__init__.py`.                                         
+      19 +  Ручная проверка сборки роутера прошла (`from app.handlers imp
+         +ort router`).                                                  
+      20 +  `ruff`/`black`/тесты (30/30) по-прежнему чистые.             
+      21 +                                                               
+      22  ## В процессе
+      18 -- Фаза 3: FSM + хендлеры + клавиатуры + тексты.                
+      23 +- Фаза 4: `main.py`, первый ручной прогон бота (нужен `BOT_TOKE
+         +N`, см. открытые вопросы).                                     
+      24  
+      25  ## Дальше
+      26  - Фаза 4: `main.py`/`config.py`, первый ручной прогон.
+
+  Committed 0ca74aa (ctrl+o to expand)
+
+● Phase 3 done. Moving to Phase 4: main.py and finalizing .env wiring.
+● Write(app/main.py)
+  ⎿  Wrote 24 lines to app/main.py
+      1 import asyncio
+      2 import logging
+      3 
+      4 import httpx
+      5 from aiogram import Bot, Dispatcher
+      6 from aiogram.fsm.storage.memory import MemoryStorage
+      7 
+      8 from app.config import settings
+      9 from app.handlers import router
+     … +15 lines (ctrl+o to expand)
+
+● Write(.env.example)
+  ⎿  Wrote 13 lines to .env.example
+       1 # Токен Telegram-бота от @BotFather. Секрет — реальное значение 
+       2 # (в .gitignore), никогда не коммитить.
+       3 BOT_TOKEN=
+       4 
+         ебе не секрет,
+       6 # но всё равно конфиг, а не хардкод в коде (CLAUDE.md, правило 1
+       7 CRM_ENDPOINT_URL=
+       8 
+       9 # Необязательные — в app/config.py уже есть дефолты, совпадающие
+      10 # Переопределяйте только если знаете, зачем.
+     … +6 lines (ctrl+o to expand)
+
+● Now sanity-checking main.py — imports and object construction without actually
+  hitting the Telegram network.
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Update(DEVLOG.md)
+  ⎿  Added 29 lines
+      125  `http_client` в хендлеры через `dp.start_polling(bot, http_cli
+           ent=...)` — в памяти
+      126  было по aiogram 2.x, синтаксис действительно другой в 3.x, как
+            и предупреждает раздел 1.5
+      127  CLAUDE.md.
+      128 +                                                              
+      129 +## [Фаза 4] main.py + первый ручной прогон                    
+      130 +                                                              
+      131 +Решение/что сделано:                                          
+      132 +`app/main.py` — точка входа: `Bot`/`Dispatcher(storage=MemoryS
+          +torage())`,                                                   
+      133 +`dp.include_router(app.handlers.router)`, один `httpx.AsyncCli
+          +ent` на всё время жизни                                       
+      134 +процесса (переиспользование соединения, а не новый клиент на к
+          +аждую заявку),                                                
+      135 +передаётся в хендлеры через `dp.start_polling(bot, http_client
+          +=client)` — DI aiogram                                        
+      136 +3.x, не глобальная переменная. `.env.example` с пустыми `BOT_T
+          +OKEN`/`CRM_ENDPOINT_URL`                                      
+      137 +(правило 1.7) и уже заполненными дефолтами retry-параметров (н
+          +е секреты, просто                                             
+      138 +документируют значения из `config.py`).                       
+      139 +                                                              
+      140 +Проверено в этой сессии (без реального Telegram-аккаунта, см. 
+          +ниже):                                                        
+      141 +- `Bot(token=...)`/`Dispatcher()`/`router` конструируются без 
+          +ошибок импорта.                                               
+      142 +- Сеть до `api.telegram.org` из окружения разработки достижима
+          + (`curl .../getMe` →                                          
+      143 +  `401` на заведомо неверном токене — то есть соединение и HTT
+          +PS/TLS проходят, просто                                       
+      144 +  токен фиктивный).                                           
+      145 +- Mock-CRM (`https://mpfbba1a2c2708d21084.free.beeceptor.com/v
+          +1/leads`) по-прежнему                                         
+      146 +  жив, curl вернул `200`.                                     
+      147 +                                                              
+      148 +Что пошло не так / чего не хватает:                           
+      149 +**Полноценный "первый ручной прогон" (раздел 5, шаг 4 workflow
+          +) в этой сессии                                               
+      150 +физически невозможен** — нет `BOT_TOKEN` (создаётся вручную че
+          +рез @BotFather, я не                                          
+      151 +могу сгенерировать его сам и не должен придумывать значение) и
+          + нет живого                                                   
+      152 +Telegram-клиента, за которым я могу понажимать кнопки — это по
+          + своей природе ручное                                         
+      153 +действие человека. Код полностью готов к прогону: как только в
+          +ладелец добавит                                               
+      154 +`BOT_TOKEN` в `.env` и запустит `python -m app.main` (или Dock
+          +er, Фаза 5), первый                                           
+      155 +прогон можно выполнить без правок кода. Зафиксировано в `PROGR
+          +ESS.md` как открытый                                          
+      156 +пункт к владельцу.                                            
+
+● Update(PROGRESS.md)
+  ⎿  Added 7 lines, removed 1 line
+      19    Ручная проверка сборки роутера прошла (`from app.handlers imp
+          ort router`).
+      20    `ruff`/`black`/тесты (30/30) по-прежнему чистые.
+      21  
+      22 +- Фаза 4: `main.py` (Bot/Dispatcher/httpx.AsyncClient DI), `.en
+         +v.example`. Импорт и                                           
+      23 +  конструирование объектов проверены без сети в Telegram; сеть 
+         +до api.telegram.org                                            
+      24 +  из окружения разработки достижима, но реального `BOT_TOKEN` н
+         +ет — живой прогон                                              
+      25 +  не выполнен, см. открытые вопросы ниже.                      
+      26 +                                                               
+      27  ## В процессе
+      23 -- Фаза 4: `main.py`, первый ручной прогон бота (нужен `BOT_TOKE
+         -N`, см. открытые вопросы).                                     
+      28 +- Фаза 5: Docker (Dockerfile/docker-compose.yml) — конфиг будет
+         + готов, но не                                                  
+      29 +  собран/не запущен мной (нет Docker-демона в окружении разрабо
+         +тки).                                                          
+      30  
+      31  ## Дальше
+      32  - Фаза 4: `main.py`/`config.py`, первый ручной прогон.
+
+  Committed 7be9d7f (ctrl+o to expand)
+
+● Phase 4 done. Now Phase 5: Docker setup.
+
+● Write(docker/Dockerfile)
+  ⎿  Wrote 13 lines to docker/Dockerfile
+       1 FROM python:3.12-slim
+       2 
+       3 WORKDIR /app
+       4 
+       5 COPY requirements.txt .
+       6 RUN pip install --no-cache-dir -r requirements.txt
+       7 
+       8 COPY app ./app
+       9 
+      10 RUN useradd --create-home --uid 1000 botuser
+     … +3 lines (ctrl+o to expand)
+
+● Write(docker-compose.yml)
+  ⎿  Wrote 8 lines to docker-compose.yml
+      1 services:
+      2   bot:
+      3     build:
+      4       context: .
+      5       dockerfile: docker/Dockerfile
+      6     env_file:
+      7       - .env
+      8     restart: unless-stopped
+
+● Write(.dockerignore)
+  ⎿  Wrote 13 lines to .dockerignore
+       1 .git/
+       2 .gitignore
+       3 .env
+       4 .venv/
+       5 venv/
+       6 __pycache__/
+       7 *.pyc
+       8 .pytest_cache/
+       9 .ruff_cache/
+      10 tests/
+     … +3 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(DEVLOG.md)
+  ⎿  Added 33 lines
+      154  `BOT_TOKEN` в `.env` и запустит `python -m app.main` (или Dock
+           er, Фаза 5), первый
+      155  прогон можно выполнить без правок кода. Зафиксировано в `PROGR
+           ESS.md` как открытый
+      156  пункт к владельцу.
+      157 +                                                              
+      158 +## [Фаза 5] Docker                                            
+      159 +                                                              
+      160 +Решение/что сделано:                                          
+      161 +`docker/Dockerfile` — `python:3.12-slim`, слой зависимостей (`
+          +requirements.txt` +                                           
+      162 +`pip install`) отдельным `COPY`/`RUN` перед копированием `app/
+          +` — кэш зависимостей не                                       
+      163 +инвалидируется при правках кода. Непривилегированный пользоват
+          +ель `botuser` (`uid                                           
+      164 +1000`), `USER botuser` перед `CMD`. `docker-compose.yml`, `.do
+          +ckerignore`.                                                  
+      165 +                                                              
+      166 +Развилка и обоснование (раздел про отклонения от структуры, CL
+          +AUDE.md разделы 3–4):                                         
+      167 +**`docker-compose.yml` положен в корень репозитория, а не в `d
+          +ocker/`**, как показано                                       
+      168 +в примере дерева раздела 4. Причина: DoD и финальный чек-лист 
+          +(разделы "Цель" и 11)                                         
+      169 +дословно и многократно требуют, чтобы `docker compose up --bui
+          +ld` поднимал бота — без                                       
+      170 +`-f docker/docker-compose.yml` и без `cd docker`. Если `docker
+          +-compose.yml` лежит в                                         
+      171 +`docker/`, эта ровно та команда не сработает без дополнительны
+          +х флагов, что напрямую                                        
+      172 +противоречит букве DoD. `Dockerfile` при этом остался в `docke
+          +r/` (структура раздела 4                                      
+      173 +это не сужает, наоборот — Dockerfile используется через `docke
+          +rfile: docker/Dockerfile`                                     
+      174 +в compose-файле, `context: .` — корень репозитория). Это ровно
+          + тот случай, когда                                            
+      175 +раздел 3 CLAUDE.md разрешает аргументированное отклонение, есл
+          +и зафиксировать его                                           
+      176 +здесь — сделано.                                              
+      177 +                                                              
+      178 +Что пошло не так / чего не хватает:                           
+      179 +**Собрать и поднять контейнер (`docker compose up --build`) в 
+          +этой сессии физически                                         
+      180 +невозможно** — в окружении разработки нет Docker-демона (`dock
+          +er`/`dockerd` не                                              
+      181 +установлены, `systemctl status docker` — "Unit not found"), и 
+          +я не могу установить его                                      
+      182 +без `sudo` (см. запись Фазы 0). Проверил синтаксическую коррек
+          +тность `docker-compose.yml`                                   
+      183 +через `yaml.safe_load` — парсится и структурно соответствует о
+          +жиданиям                                                      
+      184 +(`services.bot.build.context/dockerfile`, `env_file`, `restart
+          +`). Сам `Dockerfile`                                          
+      185 +вычитан вручную ещё раз на предмет опечаток и порядка слоёв, н
+          +о **не собран**. Это                                          
+      186 +главный оставшийся пункт DoD, который должен буквально выполни
+          +ть владелец на своей                                          
+      187 +машине: снести локальные `venv`/образы и поднять `docker compo
+          +se up --build` с нуля —                                       
+      188 +именно то, что раздел "Цель" требует проверить "буквально". То
+          +чная команда и                                                
+      189 +ожидаемый результат будут в README (раздел 10, п.5).          
+
+● Update(PROGRESS.md)
+  ⎿  Added 6 lines, removed 2 lines
+      24    из окружения разработки достижима, но реального `BOT_TOKEN` н
+          ет — живой прогон
+      25    не выполнен, см. открытые вопросы ниже.
+      26  
+      27 +- Фаза 5: `docker/Dockerfile` + `docker-compose.yml` (в корне р
+         +епозитория — см.                                               
+      28 +  DEVLOG про эту развилку) + `.dockerignore`. YAML провалидиров
+         +ан парсером, сам билд                                          
+      29 +  не выполнен — нет Docker-демона в окружении разработки. Это к
+         +лючевой пункт,                                                 
+      30 +  который должен выполнить владелец: `docker compose up --build
+         +` с нуля.                                                      
+      31 +                                                               
+      32  ## В процессе
+      28 -- Фаза 5: Docker (Dockerfile/docker-compose.yml) — конфиг будет
+         - готов, но не                                                  
+      29 -  собран/не запущен мной (нет Docker-демона в окружении разрабо
+         -тки).                                                          
+      33 +- Фаза 6/7: README, финальная самопроверка, сбор доказательств 
+         +для DoD.                                                       
+      34  
+      35  ## Дальше
+      36  - Фаза 4: `main.py`/`config.py`, первый ручной прогон.
+
+  Committed e47da27, ran 2 shell commands (ctrl+o to expand)
+
+● Clean. Now writing the README covering all 9 required sections.
+
+● Write(README.md)
+  ⎿  Wrote 190 lines to README.md
+      1 # Lead-bot — Telegram-бот для сбора заявок
+      2 
+      4 
+      5 Telegram-бот на aiogram 3.x, который проводит короткий опрос (имя
+         → телефон → удобное
+        равляет заявку
+      7 асинхронным POST-запросом во внешний Mock-CRM (Beeceptor). Бот пе
+        реживает временные
+        узой и не блокирует
+      9 обслуживание других пользователей, пока ждёт ответа CRM.
+     … +263 lines (ctrl+o to expand)
+● Now running the full self-check pass: lint, format, tests, and a manual sweep
+  for the "AI mess" checklist (section 8).
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● No secrets ever touched git. Committing the README now.
+
+  Committed 854aa52, ran 1 shell command (ctrl+o to expand)
+
+● Still alive. Now writing the final DEVLOG self-check entry and updating
+  PROGRESS with the closing status.
+
+● Update(DEVLOG.md)
+  ⎿  Added 23 lines
+      187  машине: снести локальные `venv`/образы и поднять `docker compo
+           se up --build` с нуля —
+      188  именно то, что раздел "Цель" требует проверить "буквально". То
+           чная команда и
+      189  ожидаемый результат будут в README (раздел 10, п.5).
+      190 +                                                              
+      191 +## [Фаза 7] README + самопроверка по разделу 8                
+      192 +                                                              
+      193 +Решение/что сделано:                                          
+      194 +`README.md` — все 9 пунктов раздела 10 CLAUDE.md. Прогнал само
+          +проверку по чек-листу                                         
+      195 +раздела 8 явно, а не "на глаз": `ruff check .` и `black --chec
+          +k .` — чисто по всему                                         
+      196 +проекту; `grep` на `TODO`/`FIXME`/`implement later` — ничего; 
+          +`grep` на                                                     
+      197 +`except Exception` — ничего (везде конкретные исключения: `htt
+          +px.HTTPError`,                                                
+      198 +`(ValueError, ValidationError)`, `CrmDeliveryFailed`/`CrmNonRe
+          +tryableError`); `grep` на                                     
+      199 +закомментированный код (строки вида `# x = ...`/`# def ...`) —
+          + ничего; `wc -l` по всем                                      
+      200 +модулям — самый большой файл `crm_client.py` на 98 строк, ни о
+          +дного "файла-простыни";                                       
+      201 +магические числа (2/50 для имени, 3/3 для ретраев) — проверил,
+          + что везде это ссылки на                                      
+      202 +`NAME_MIN_LENGTH`/`NAME_MAX_LENGTH`/`settings.retry_attempts`/
+          +`settings.retry_delay_seconds`,                               
+      203 +не повторяющиеся литералы. Финальная проверка живости Mock-API
+          + перед сдачей (раздел 2.1                                     
+      204 +CLAUDE.md, "проверь доступность заново, а не полагайся на памя
+          +ть") — `curl` вернул `200`.                                   
+      205 +                                                              
+      206 +Что осталось (честно, не сглаживая):                          
+      207 +Живой прогон в Docker и в реальном Telegram-клиенте — единстве
+          +нное, что физически не                                        
+      208 +может быть выполнено в среде, где писался код (см. фазы 0/4/5)
+          +. Весь код, все тесты,                                        
+      209 +весь Docker-конфиг готовы к этому прогону без дополнительных п
+          +равок. Финальный чек-лист                                     
+      210 +раздела 11 — статус по каждому пункту зафиксирован в `PROGRESS
+          +.md` и в финальном отчёте                                     
+      211 +владельцу отдельным сообщением, не здесь (DEVLOG — про решения
+          + по ходу работы, а не про                                     
+      212 +финальную сдачу).                                             
+
+● Write(PROGRESS.md)
+  ⎿  Added 34 lines, removed 42 lines
+       1  # PROGRESS
+       2  
+       3 -Статус на: 2026-07-02, старт работы.                           
+       3 +Статус на: 2026-07-02, конец сессии разработки.                
+       4  
+       5 -## Сделано                                                     
+       6 -- Прочитаны `CLAUDE.md` и `API_CONTRACT.md` целиком.           
+       7 -- Проверен Mock-API вручную (`curl`): `200` от `POST /v1/leads`
+         -, эндпоинт живой.                                              
+       8 -- Создана структура каталогов `lead-bot/app/...` с пустыми `__i
+         -nit__.py` (раздел 4 CLAUDE.md).                                
+       9 -- `git init`, `.gitignore`.                                    
+      10 -- Фаза 1: `models/lead.py` (Lead/PreferredTime/CrmSuccessRespon
+         -se/CrmErrorResponse),                                          
+      11 -  `validators/name.py`, `validators/phone.py`. 25 юнит-тестов, 
+         -все зелёные. Закоммичено.                                      
+       5 +## Сделано (весь код, тесты, документация)                     
+       6 +- Фаза 0: структура каталогов, git, `.gitignore`.              
+       7 +- Фаза 1: `models/lead.py`, `validators/name.py`, `validators/p
+         +hone.py` — 25 тестов, зелёные.                                 
+       8 +- Фаза 2: `config.py`, `crm_client.py` (retry 3 попытки/3 сек, 
+         +retryable/non-retryable                                        
+       9 +  по `API_CONTRACT.md` разделу 5) — 5 respx-тестов, зелёные.   
+      10 +- Фаза 3: FSM (`states/lead_form.py`), хендлеры (`start.py`/`su
+         +rvey.py`/`confirm.py`),                                        
+      11 +  клавиатуры, `texts/messages.py` — вежливые тексты на "Вы", ре
+         +трай-текст из ТЗ дословно.                                     
+      12 +- Фаза 4: `main.py` (Bot/Dispatcher/httpx.AsyncClient DI), `.en
+         +v.example`.                                                    
+      13 +- Фаза 5: `docker/Dockerfile`, `docker-compose.yml` (в корне — 
+         +см. DEVLOG), `.dockerignore`.                                  
+      14 +- Фаза 7: `README.md` (все 9 пунктов раздела 10 CLAUDE.md), сам
+         +опроверка по разделу 8                                         
+      15 +  пройдена явно (ruff/black чисто, grep на TODO/`except Excepti
+         +on`/закомментированный                                         
+      16 +  код — ничего не найдено), `ruff check .`/`black --check .` — 
+         +без замечаний.                                                 
+      17 +- 30/30 юнит-тестов зелёные (`pytest tests/ -v`).              
+      18 +- Mock-API проверен живым несколько раз в ходе сессии, последни
+         +й раз — только что (`200`).                                    
+      19 +- 7 коммитов, атомарно по фазам, история чистая (`git log --one
+         +line`).                                                        
+      20  
+      13 -- Фаза 2: `config.py` (Settings), `crm_client.py` (async POST +
+         - retry на 3                                                    
+      14 -  попытки/3 сек по `API_CONTRACT.md` разделу 5), 5 respx-тестов
+         -, все зелёные.                                                 
+      15 -  `ruff`/`black` без замечаний по всему проекту на этот момент.
+      21 +## Не сделано мной физически — требует владельца (см. README ра
+         +здел 8, DEVLOG фазы 4-6)                                       
+      22 +- **`docker compose up --build` с нуля** — в среде разработки н
+         +ет Docker-демона.                                              
+      23 +- **`BOT_TOKEN`** — не создан (создаётся вручную через @BotFath
+         +er), в `.env` не вписан.                                       
+      24 +- **Живой прогон `/start` → карточка → отправка** в реальном Te
+         +legram-клиенте, со                                             
+      25 +  скриншотом/логом `200`.                                      
+      26 +- **Живой прогон ретрая** (`500`/`429` от реального Beeceptor, 
+         +видимое сообщение                                              
+      27 +  "Сервер CRM временно занят...") — логика доказана respx-теста
+         +ми, но не поймана вживую.                                      
+      28 +- **Проверка асинхронности на двух чатах** — по коду гарантируе
+         +тся (один event loop,                                          
+      29 +  ни одного блокирующего вызова, `asyncio.sleep` вместо `time.s
+         +leep`, `httpx.AsyncClient`                                     
+      30 +  вместо синхронного `requests`), но ручная проверка на двух ре
+         +альных аккаунтах не                                            
+      31 +  выполнена.                                                   
+      32  
+      17 -- Фаза 3: `states/lead_form.py`, `keyboards/`, `texts/messages.
+         -py`,                                                           
+      18 -  `handlers/{start,survey,confirm}.py`. Роутеры собраны в `app/
+         -handlers/__init__.py`.                                         
+      19 -  Ручная проверка сборки роутера прошла (`from app.handlers imp
+         -ort router`).                                                  
+      20 -  `ruff`/`black`/тесты (30/30) по-прежнему чистые.             
+      21 -                                                               
+      22 -- Фаза 4: `main.py` (Bot/Dispatcher/httpx.AsyncClient DI), `.en
+         -v.example`. Импорт и                                           
+      23 -  конструирование объектов проверены без сети в Telegram; сеть 
+         -до api.telegram.org                                            
+      24 -  из окружения разработки достижима, но реального `BOT_TOKEN` н
+         -ет — живой прогон                                              
+      25 -  не выполнен, см. открытые вопросы ниже.                      
+      26 -                                                               
+      27 -- Фаза 5: `docker/Dockerfile` + `docker-compose.yml` (в корне р
+         -епозитория — см.                                               
+      28 -  DEVLOG про эту развилку) + `.dockerignore`. YAML провалидиров
+         -ан парсером, сам билд                                          
+      29 -  не выполнен — нет Docker-демона в окружении разработки. Это к
+         -лючевой пункт,                                                 
+      30 -  который должен выполнить владелец: `docker compose up --build
+         -` с нуля.                                                      
+      31 -                                                               
+      32 -## В процессе                                                  
+      33 -- Фаза 6/7: README, финальная самопроверка, сбор доказательств 
+         -для DoD.                                                       
+      34 -                                                               
+      35 -## Дальше                                                      
+      36 -- Фаза 4: `main.py`/`config.py`, первый ручной прогон.         
+      37 -- Фаза 5: Docker.                                              
+      38 -- Фаза 6: доказательства для DoD.                              
+      39 -- Фаза 7: README + DEVLOG + самопроверка.                      
+      40 -                                                               
+      33  ## Открытые вопросы к владельцу
+      42 -- **Docker и живой Telegram-прогон нельзя выполнить из текущего
+         - окружения                                                     
+      43 -  разработки** (нет демона Docker, нет `BOT_TOKEN`, нет доступа
+         - к живому Telegram-клиенту                                     
+      44 -  с двух аккаунтов). Весь код/тесты/Docker-конфиг будут готовы 
+         -и провалидированы                                              
+      45 -  локально (pytest, ruff/black), но пункты DoD, требующие реаль
+         -ного `docker compose up                                        
+      46 -  --build` и ручного прохода `/start` → отправка в Telegram (вк
+         -лючая проверку ретрая и                                        
+      47 -  параллельности двух чатов), должен выполнить владелец на свое
+         -й машине по инструкции                                         
+      48 -  в README. Это зафиксировано и в DEVLOG.md.                   
+      34 +Нужен `BOT_TOKEN` (от @BotFather) и окружение с Docker, чтобы з
+         +акрыть пункты выше.                                            
+      35 +Один из вариантов: владелец сам прогоняет `docker compose up --
+         +build` +                                                       
+      36 +ручной сценарий по README разделам 4/5, делает скриншоты/логи и
+         + добавляет их в отчёт.                                         
+      37 +Альтернатива: если владелец готов передать `BOT_TOKEN`, можно п
+         +однять `python -m                                              
+      38 +app.main` в фоне текущего окружения разработки (сеть до `api.te
+         +legram.org` и до                                               
+      39 +Mock-CRM подтверждена доступной) и вместе провести живую провер
+         +ку — тогда логи ретраев                                        
+      40 +снимет ассистент, а скриншоты интерфейса — владелец со своего т
+         +елефона.                                                       
+
+  Committed 8eb88c0 (ctrl+o to expand)
+
+● Everything I can build and verify from this sandbox is done: full codebase,
+  30/30 green tests, ruff/black clean, git history atomic per phase, README +
+  DEVLOG + PROGRESS complete. Here's the final status against the DoD checklist:
+
+  Done and verified here:
+  - Models/validators/crm_client/FSM/handlers/keyboards/texts — all written,
+  modular (largest file is 98 lines)
+  - 30 unit tests green (pytest tests/ -v): 25 validator boundary cases + 5
+  respx retry scenarios (200-immediate, 500→500→200, 429×3→fail,
+  network-timeout, non-retryable 422)
+  - ruff check . / black --check . — clean across the whole project
+  - Section 8 "AI garbage" self-check run explicitly (grep for TODO/FIXME, bare
+  except Exception, commented-out code — all empty)
+  - Mock-API confirmed alive multiple times, most recently 200 just now
+  - README covers all 9 required sections; DEVLOG has a real entry per phase
+  including the genuine forks (docker-compose.yml placement, request_id reuse
+  across manual retries)
+  - No secrets ever touched git; .env never created in the repo
+
+  Blocked on things only you can provide (documented honestly in README §8 and
+  PROGRESS.md, not glossed over):
+  - docker compose up --build from clean — no Docker daemon in this dev sandbox
+  - BOT_TOKEN from @BotFather — I can't generate one
+  - The manual Telegram flow, retry-catch screenshot, and dual-chat concurrency
+  check — these need a real phone-verified Telegram client
+
+  To close those out, two options: you run docker compose up --build and the
+  manual Telegram scenarios yourself using README sections 4-6 and grab the
+  screenshots/logs; or, if you hand me a BOT_TOKEN, I can run python -m app.main
+  here in the background (network to api.telegram.org and the Mock-API is
+  confirmed reachable from this sandbox) and tail the retry logs live while you
+  click through it on your phone — combining my logs with your screenshots as
+  evidence.
+
+● User answered Claude's questions:
+  ⎿  · Как закрыть оставшиеся пункты DoD (Docker + живой Telegram-прогон)? → 
+     Сделаю сам по README
+
+● Understood — I'll stop here. Everything needed is in place and committed:
+
+  - Repo: /home/tony/Desktop/work/TZ/lead-bot/, 8 atomic commits on main, clean
+  working tree
+  - Run it: cp .env.example .env, fill in BOT_TOKEN +
+  CRM_ENDPOINT_URL=https://mpfbba1a2c2708d21084.free.beeceptor.com/v1/leads,
+  then docker compose up --build (README §5)
+  - Manual test script: README §4-7 walks through the local run, Docker run,
+  Mock-API curl proof, and what the retry/async checks should look like
+  - Checklist to fill in yourself: PROGRESS.md "Не сделано мной физически"
+  section lists exactly the DoD items still open (Docker build, live /start flow
+  with screenshot, live retry catch, dual-chat concurrency) — tick them off as
+  you go, and drop the evidence into the final report per CLAUDE.md §11
+  - If you hit a snag: DEVLOG.md has the real decision trail (aiogram 3.x FSM
+  patterns via Context7, why docker-compose.yml sits at repo root, why
+  request_id is reused across manual retries, etc.) in case something in the
+  code needs explaining
+
+  Ping me if you want help interpreting an error once you're running it live.
+
+✻ Cogitated for 21m 54s
+
+❯ запуш на гит https://github.com/ring-rong/tzliquidbot                         
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● .env.example got deleted from your working tree (looks like it was renamed to
+  .env while you set up your token) — I'll restore the template since it needs
+  to stay in the repo; your .env is untouched and already gitignored.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Good — clean working tree, .env.example restored, your real .env stays local
+  and ignored. Now checking for gh/auth options to push.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● SSH auth to GitHub as ring-rong already works. Adding the remote and pushing.
+
+  Ran 2 shell commands (ctrl+o to expand)
+● Empty remote repo, no conflicts. Pushing main.
+
+  Pushed to main, ran 1 shell command (ctrl+o to expand)
+
+● Pushed. All 9 commits are live at https://github.com/ring-rong/tzliquidbot on
+  main, and your local .env (never committed) is safe. Repo is ready for you to
+  run the Docker/live-Telegram checks per README.
+
+✻ Baked for 2m 7s
+
+※ recap: Built and pushed the full Telegram lead-bot to github.com/ring-rong/tzliquidbot, with code, tests, and docs done. Next: you run docker compose up --build and the live Telegram flow yourself, since this sandbox lacks Docker and a bot token. (disable recaps in /config)
+
+[Image #1]
+  ⎿  [Image #1]
+
+❯ ubuntu@ubuntu:~/tzliquidbot/tzliquidbot$ docker compose logs -f               
+  bot-1  | INFO:aiogram.dispatcher:Start polling                                
+  bot-1  | INFO:aiogram.dispatcher:Start polling                                
+  bot-1  | INFO:aiogram.dispatcher:Run polling for bot @tzliquid_bot            
+  id=8800067389 - 'tzliquidbot'                                                 
+  bot-1  | INFO:aiogram.event:Update id=817491113 is handled. Duration 800 ms   
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491114 is handled. Duration 201 ms   
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491115 is handled. Duration 220 ms   
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491116 is handled. Duration 563 ms   
+  by bot id=8800067389                                                          
+  bot-1  | INFO:httpx:HTTP Request: POST                                        
+  https://mpfbba1a2c2708d21084.free.beeceptor.com/v1/leads "HTTP/1.1 200 OK"    
+  bot-1  | WARNING:app.services.crm_client:CRM вернула неожиданный формат       
+  успешного ответа (попытка 1): '{\n  "status": "ok",\n  "lead_id":             
+  "lead_demo",\n  "request_id": "{{request.body.request_id}}",\n                
+  "received_at": "{{now}}"\n}'                                                  
+  bot-1  | INFO:httpx:HTTP Request: POST                                        
+  https://mpfbba1a2c2708d21084.free.beeceptor.com/v1/leads "HTTP/1.1 200 OK"    
+  bot-1  | WARNING:app.services.crm_client:CRM вернула неожиданный формат       
+  успешного ответа (попытка 2): '{\n  "status": "ok",\n  "lead_id":             
+  "lead_demo",\n  "request_id": "{{request.body.request_id}}",\n                
+  "received_at": "{{now}}"\n}'                                                  
+  bot-1  | INFO:httpx:HTTP Request: POST                                        
+  https://mpfbba1a2c2708d21084.free.beeceptor.com/v1/leads "HTTP/1.1 200 OK"    
+  bot-1  | WARNING:app.services.crm_client:CRM вернула неожиданный формат       
+  успешного ответа (попытка 3): '{\n  "status": "ok",\n  "lead_id":             
+  "lead_demo",\n  "request_id": "{{request.body.request_id}}",\n                
+  "received_at": "{{now}}"\n}'                                                  
+  bot-1  | ERROR:app.handlers.confirm:Отправка заявки                           
+  4ecd805c-357e-4e4a-a163-a74838ff1f59 не удалась: Не удалось отправить заявку  
+  после 3 попыток                                                               
+  bot-1  | INFO:aiogram.event:Update id=817491117 is handled. Duration 14651 ms 
+  by bot id=8800067389                                                          
+
+● This is a real, useful finding — and good news mixed with one blocker. Let me
+  break down what the logs show.
+
+  What's working (great evidence for the DoD):
+  - Docker container is running, aiogram polling, handling updates
+  - The retry flow fired for real against the live Beeceptor endpoint, with the
+  exact required Russian text: "Сервер CRM временно занят, пытаюсь отправить ещё
+  раз..." → "Сервер CRM всё ещё занят, пробую ещё раз..." → graceful
+  critical-failure message with "Попробовать снова"/"Заполнить заново" buttons —
+  this matches texts/messages.py exactly
+  - The whole cycle (3 attempts × ~1.8s CRM latency + 2×3s sleeps) took ~14.6s
+  per the log's Duration 14651 ms, and the bot logged full diagnostics
+  (response.text with the raw body) instead of leaking anything to the user —
+  also matches spec
+
+  The actual bug — but it's on the Beeceptor side, not in the bot:
+  Look at the log closely:
+
+  CRM вернула неожиданный формат успешного ответа (попытка 1): '{...
+  "request_id": "{{request.body.request_id}}", "received_at": "{{now}}" }'
+
+  Beeceptor returned 200 OK, but the response body still has the literal
+  Mustache placeholders {{request.body.request_id}} / {{now}} — they were never
+  substituted. That's not valid per CrmSuccessResponse (needs a real UUID and a
+  real datetime), so the bot correctly treats it as a malformed/retryable
+  response per API_CONTRACT.md §6 ("не парсится как JSON/контракт → relayable"),
+  retries 3 times, and since every success response has this problem, it always
+  exhausts retries and reports a critical failure — even though the CRM
+  technically said "200, all good."
+
+  This means the success path can't currently be demonstrated live, and it's not
+  something I should try to patch around in code (weakening CrmSuccessResponse
+  to accept garbage would hide a real contract violation, and CLAUDE.md
+  explicitly says: diagnose on our side first, then stop and ask you rather than
+  "fix" the mock myself). Our side is fine — the request body sent to Beeceptor
+  is correct.
+
+  Likely fix (on your end, in the Beeceptor UI): open the "Success" (70%) rule
+  variant and check whether "Enable Templating" (sometimes a </> toggle next to
+  the response body editor) is actually turned on — API_CONTRACT.md's
+  "templated": true is documentation of intent, but the UI has a separate switch
+  that may not have been checked when the rule was saved. Once that's on,
+  {{request.body.request_id}}/{{now}} should interpolate for real.
+
+  Let me log this in DEVLOG now, then you can flip that toggle and we grab one
+  more screenshot of a real success confirmation to close out the DoD.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Update(DEVLOG.md)
+  ⎿  Added 52 lines
+      210  раздела 11 — статус по каждому пункту зафиксирован в `PROGRESS
+           .md` и в финальном отчёте
+      211  владельцу отдельным сообщением, не здесь (DEVLOG — про решения
+            по ходу работы, а не про
+      212  финальную сдачу).
+      213 +                                                              
+      214 +## [Фаза 6] Живой прогон в Docker — найдена реальная проблема 
+          +на стороне Mock-API                                           
+      215 +                                                              
+      216 +Решение/что сделано:                                          
+      217 +Владелец поднял `docker compose up --build` на своей машине (U
+          +buntu), прогнал реальный                                      
+      218 +Telegram-флоу (`/start` → имя → телефон → время → карточка → "
+          +Отправить заявку") и                                          
+      219 +прислал логи `docker compose logs -f` + скриншот Beeceptor-даш
+          +борда + скриншот чата.                                        
+      220 +                                                              
+      221 +Что нашли:                                                    
+      222 +Ретрай-цикл отработал вживую **корректно и по тексту ТЗ**: "Се
+          +рвер CRM временно занят,                                      
+      223 +пытаюсь отправить ещё раз..." → "Сервер CRM всё ещё занят, про
+          +бую ещё раз..." →                                             
+      224 +вежливое сообщение о критическом сбое с кнопками "Попробовать 
+          +снова"/"Заполнить                                             
+      225 +заново" — ровно как в `texts/messages.py`. Но триггером ретрая
+          + оказался не 500/429, а                                       
+      226 +**`200 OK` с не подставленным Mustache-шаблоном** в теле: Beec
+          +eptor вернул буквально                                        
+      227 +`"request_id": "{{request.body.request_id}}"`, `"received_at":
+          + "{{now}}"` вместо                                            
+      228 +реальных значений. `CrmSuccessResponse.model_validate()` закон
+          +омерно упал                                                   
+      229 +(`ValidationError`: не UUID, не datetime), клиент по правилу и
+          +з раздела 6                                                   
+      230 +`API_CONTRACT.md` ("не парсится по контракту → relayable") чес
+          +тно залогировал сырое                                         
+      231 +тело и ушёл на ретрай — 3 раза подряд с одним и тем же результ
+          +атом, потому что                                              
+      232 +проблема системная (все 4 запроса на скриншоте Beeceptor показ
+          +ывают одинаковый                                              
+      233 +нешаблонизированный ответ), а не случайный сбой одного запроса
+          +.                                                             
+      234 +                                                              
+      235 +Диагностика (по правилу раздела "при затыке" CLAUDE.md — снача
+          +ла проверить свою                                             
+      236 +сторону, прежде чем считать мок сломанным):                   
+      237 +- Тело запроса от бота корректно (`request_id`/`name`/`phone`/
+          +`preferred_time`/                                             
+      238 +  `source`/`submitted_at`, все поля на месте, `request_id` — в
+          +алидный UUID) — видно на                                      
+      239 +  том же скриншоте Beeceptor в панели "Request Body".         
+      240 +- Значит, дело не в боте: `{{request.body.request_id}}` не под
+          +ставился, хотя                                                
+      241 +  `request.body.request_id` в запросе присутствует и валиден —
+          + то есть на стороне                                           
+      242 +  Beeceptor для варианта "Success" правила (70% вес) не включе
+          +но сопоставление                                              
+      243 +  Mustache-темплейтов (`"templated": true` в `API_CONTRACT.md`
+          +, раздел 7, — это                                             
+      244 +  зафиксированное намерение конфига, а не гарантия, что чекбок
+          +с в реальном UI-редакторе                                     
+      245 +  правила включён).                                           
+      246 +                                                              
+      247 +Что решено НЕ делать:                                         
+      248 +Не ослаблять `CrmSuccessResponse` (например, разрешить `reques
+          +t_id`/`received_at`                                           
+      249 +принимать произвольную строку) — это была бы маскировка реальн
+          +ого расхождения                                               
+      250 +Mock-API с `API_CONTRACT.md`, а не починка бота: раздел "при з
+          +атыке" CLAUDE.md прямо                                        
+      251 +называет этот случай (мок ведёт себя не по контракту) поводом 
+          +остановиться и спросить                                       
+      252 +владельца, а не чинить сам мок или подстраивать код под его те
+          +кущее (предположительно                                       
+      253 +случайно неверное) поведение. Владельцу предложено проверить т
+          +умблер "шаблонизация                                          
+      254 +ответа" в редакторе правила "Success" на Beeceptor и пересохра
+          +нить.                                                         
+      255 +                                                              
+      256 +Побочный положительный эффект:                                
+      257 +Хотя это не тот сценарий, который планировался как демонстраци
+          +я ретрая (не литеральный                                      
+      258 +500/429, а невалидный по контракту 200), по факту он честно до
+          +казал то же самое:                                            
+      259 +асинхронный ретрай-цикл, `asyncio.sleep` без блокировки, вежли
+          +вый текст без утечки                                          
+      260 +технических деталей, сохранение данных карточки при критическо
+          +м сбое — всё отработало                                       
+      261 +на реальной сети, реальном Docker-контейнере, реальном Telegra
+          +m-клиенте. Единственное,                                      
+      262 +что пока не удалось живьём поймать — счастливый путь (валидный
+          + `200` → сообщение об                                         
+      263 +успехе), потому что при текущей конфигурации Beeceptor успешна
+          +я ветка недостижима в                                         
+      264 +валидном виде вообще ни разу.                                 
+
+  Committed 2d295da, pushed to main (ctrl+o to expand)
+
+● Logged and pushed. Docker + the real Telegram retry flow are now proven live —
+  great evidence for the DoD. The one gap is the success confirmation, and it's
+  blocked on a Beeceptor config toggle, not the bot code.
+
+  Next step for you: in the Beeceptor rule editor for POST /v1/leads, open the
+  "Success" (70%) variant and check whether templating is actually enabled on
+  that response body (look for a toggle near the body editor, often shown as </>
+  or "Enable Templating") — it looks like it's currently off even though
+  API_CONTRACT.md documents it as templated: true. Once it's on, re-send a lead
+  through the bot (or a few, since it's still weighted 70/20/10) and you should
+  get a real 200 with a proper lead_id/request_id/received_at, and the bot
+  should show "Спасибо, {имя}! Заявка отправлена, с Вами свяжутся в выбранное 
+  время." Send me that screenshot/log when you have it and I'll fold it into the
+  final report.
+
+✻ Worked for 2m 15s
+
+※ recap: Building and shipping the tzliquidbot Telegram lead bot per CLAUDE.md/API_CONTRACT.md; code, tests, Docker, and docs are done and pushed to GitHub, and live Docker/Telegram testing confirmed the retry flow works. Next: you check the Beeceptor "Success" rule's templating toggle so we can confirm a real success message. (disable recaps in /config)
+
+❯ перечитай /home/tony/Desktop/work/TZ/API_CONTRACT.md В коде                   
+  (app/services/crm_client.py) нужно разделить обработку: сейчас, судя по логу, 
+  pydantic.ValidationError при парсинге успешного тела, похоже, ловится тем же  
+  except, что и retryable-ошибки. Нужно поймать ValidationError отдельно от     
+  сетевых/5xx/429-веток и сразу выйти в критический сбой, без цикла ретраев —   
+  это ровно тот код-ревью-момент, который отличает аккуратную обработку ошибок  
+  от «на всякий случай всё ретраим».                                            
+
+  Read 1 file (ctrl+o to expand)
+
+● Good catch — and I see API_CONTRACT.md §5 was actually updated with a new row
+  (line 106) that documents exactly this case: a 200 with a body that fails to
+  parse into CrmSuccessResponse is now specified as non-retryable, logged as a
+  critical failure immediately. That's a deliberate contract fix, not just a
+  suggestion — let me align the code.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(app/services/crm_client.py)
+  ⎿  Added 21 lines, removed 3 lines
+      63          else:
+      64              if response.status_code in (200, 201):
+      65                  try:
+      66 -                    return CrmSuccessResponse.model_validate(re
+         -sponse.json())                                                 
+      67 -                except (ValueError, ValidationError) as exc:   
+      66 +                    payload_json = response.json()             
+      67 +                except ValueError as exc:                      
+      68                      last_error = exc
+      69                      logger.warning(
+      70 -                        "CRM вернула неожиданный формат успешно
+         -го ответа (попытка %s): %r",                                   
+      70 +                        "CRM вернула не-JSON тело на успешном с
+         +татусе (попытка %s): %r",                                      
+      71                          attempt,
+      72                          response.text,
+      73                      )
+      74 +                else:                                          
+      75 +                    try:                                       
+      76 +                        return CrmSuccessResponse.model_validat
+         +e(payload_json)                                                
+      77 +                    except ValidationError as exc:             
+      78 +                        # Валидный JSON, но не по контракту (на
+         +пример, Beeceptor вернул                                       
+      79 +                        # шаблон {{...}} буквально) — это детер
+         +минированная проблема                                          
+      80 +                        # конфигурации CRM, не временный сбой. 
+         +Повтор даст тот же                                             
+      81 +                        # результат, поэтому не ретраим (API_CO
+         +NTRACT.md, раздел 5).                                          
+      82 +                        logger.error(                          
+      83 +                            "CRM подтвердила приём (%s), но тел
+         +о не соответствует "                                           
+      84 +                            "контракту: %r — %s",              
+      85 +                            response.status_code,              
+      86 +                            response.text,                     
+      87 +                            exc,                               
+      88 +                        )                                      
+      89 +                        raise CrmNonRetryableError(            
+      90 +                            "CRM ответила успехом, но тело не с
+         +оответствует контракту"                                        
+      91 +                        ) from exc                             
+      92              elif response.status_code in RETRYABLE_STATUS_CODES
+          :
+      93                  last_error = CrmRetryableError(_describe_error(
+          response))
+      94                  logger.warning(
+
+● Now let's review the full updated function and run lint/tests.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now I need a new test for this exact scenario, and to update the existing test
+  expectations. Let me look at the current test file.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(tests/test_crm_client.py)
+  ⎿  Added 15 lines
+      43      )
+      44  
+      45  
+      46 +def unsubstituted_template_response() -> httpx.Response:       
+      47 +    """200 с валидным JSON, но не по контракту — как реальный о
+         +твет Beeceptor,                                                
+      48 +    когда шаблонизация выключена в правиле: request_id/received
+         +_at приходят                                                   
+      49 +    буквальной строкой `{{...}}` вместо UUID/datetime."""      
+      50 +    return httpx.Response(                                     
+      51 +        200,                                                   
+      52 +        json={                                                 
+      53 +            "status": "ok",                                    
+      54 +            "lead_id": "lead_demo",                            
+      55 +            "request_id": "{{request.body.request_id}}",       
+      56 +            "received_at": "{{now}}",                          
+      57 +        },                                                     
+      58 +    )                                                          
+      59 +                                                               
+      60 +                                                               
+      61  @pytest.fixture(autouse=True)
+      62  def fast_retries(monkeypatch):
+      63      monkeypatch.setattr(settings, "retry_delay_seconds", 0.0)
+
+● Update(tests/test_crm_client.py)
+  ⎿  Added 18 lines
+      155              await send_lead(lead, client=client)
+      156  
+      157      assert route.call_count == 1
+      158 +                                                              
+      159 +                                                              
+      160 +@respx.mock                                                   
+      161 +async def test_200_with_contract_violating_body_fails_immediat
+          +ely_without_retry():                                          
+      162 +    lead = make_lead()                                        
+      163 +    retry_calls: list[int] = []                               
+      164 +                                                              
+      165 +    async def on_retry(attempt: int) -> None:                 
+      166 +        retry_calls.append(attempt)                           
+      167 +                                                              
+      168 +    route = respx.post(CRM_URL).mock(side_effect=[unsubstitute
+          +d_template_response()])                                       
+      169 +                                                              
+      170 +    async with httpx.AsyncClient() as client:                 
+      171 +        with pytest.raises(CrmNonRetryableError):             
+      172 +            await send_lead(lead, client=client, on_retry=on_r
+          +etry)                                                         
+      173 +                                                              
+      174 +    assert route.call_count == 1                              
+      175 +    assert retry_calls == []                                  
+
+● Now running lint/format/tests to verify.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Update(DEVLOG.md)  ⎿  Added 36 lines
+      262  что пока не удалось живьём поймать — счастливый путь (валидный
+            `200` → сообщение об
+      263  успехе), потому что при текущей конфигурации Beeceptor успешна
+           я ветка недостижима в
+      264  валидном виде вообще ни разу.
+      265 +                                                              
+      266 +## [Фаза 6, продолжение] Исправление: 200 + невалидное тело не
+          + должен ретраиться                                            
+      267 +                                                              
+      268 +Решение/что сделано:                                          
+      269 +Владелец перечитал живой лог из предыдущей записи внимательнее
+          + меня и указал на                                             
+      270 +конкретный код-ревью момент: в `crm_client.py` ветка `response
+          +.status_code in (200,                                         
+      271 +201)` ловила `(ValueError, ValidationError)` одним и тем же `e
+          +xcept` и уходила в общий                                      
+      272 +retry-цикл наравне с 500/429/сетевыми ошибками. `API_CONTRACT.
+          +md` тем временем уже был                                      
+      273 +обновлён (раздел 5, новая строка) с явным правилом на этот слу
+          +чай — **"200, но тело не                                      
+      274 +парсится в `CrmSuccessResponse` → non-retryable"**, с прямой о
+          +тсылкой на то, что это                                        
+      275 +"реальный кейс, пойманный на практике" (то есть на тот самый п
+          +рогон с Beeceptor).                                           
+      276 +Разделил обработку на два уровня: `response.json()` может кину
+          +ть `ValueError` (тело                                         
+      277 +вообще не JSON — это по-прежнему retryable, мало ли что за тек
+          +ст вернул сервер) —                                           
+      278 +но если JSON распарсился, а `CrmSuccessResponse.model_validate
+          +()` упал с                                                    
+      279 +`ValidationError` — это **сразу** `CrmNonRetryableError`, без 
+          +единой повторной попытки                                      
+      280 +и без вызова `on_retry`.                                      
+      281 +                                                              
+      282 +Почему так, а не иначе:                                       
+      283 +Ретраить детерминированно битый ответ 3 раза — гарантированно 
+          +получить тот же битый                                         
+      284 +ответ 3 раза (тот самый лог это и показал: попытка 1/2/3 — иде
+          +нтичный                                                       
+      285 +нешаблонизированный текст). Кроме бесполезной траты ~6 секунд 
+          +на `asyncio.sleep`, это                                       
+      286 +ещё и вводит пользователя в заблуждение сообщением "Сервер CRM
+          + временно занят" — сервер                                     
+      287 +не занят, он стабильно отвечает не по контракту, это разные по
+          + смыслу ситуации и они                                        
+      288 +не должны звучать одинаково в интерфейсе. Ровно та грань между
+          + "аккуратная обработка                                        
+      289 +ошибок" и "на всякий случай всё ретраим", которую и просили пр
+          +овести. Добавлен                                              
+      290 +respx-тест `test_200_with_contract_violating_body_fails_immedi
+          +ately_without_retry` —                                        
+      291 +проверяет `call_count == 1` и `retry_calls == []`. Все 31 тест
+          + (30 было + 1 новый)                                          
+      292 +зелёные, `ruff`/`black` без замечаний.                        
+      293 +                                                              
+      294 +Что пошло не так:                                             
+      295 +Ничего — сам не поймал эту грань при первом проектировании `cr
+          +m_client.py` в Фазе 2,                                        
+      296 +хотя `API_CONTRACT.md` на тот момент (раздел 6) говорил только
+          + про "не парсится как                                         
+      297 +JSON" в общем виде и не разделял "невалидный JSON" и "валидный
+          + JSON не по схеме" —                                          
+      298 +разница между `ValueError` и `pydantic.ValidationError` показа
+          +лась на тот момент                                            
+      299 +достаточно тонкой, чтобы не развести их явно. Живой прогон с р
+          +еальным Beeceptor вскрыл                                      
+      300 +это на практике, `API_CONTRACT.md` был обновлён по итогам, код
+          + — следом.                                                    
+
+  Committed c8f30d8, pushed to main, read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Write(PROGRESS.md)
+  ⎿  Added 29 lines, removed 20 lines
+      1  # PROGRESS
+      2  
+      3 -Статус на: 2026-07-02, конец сессии разработки.                 
+      3 +Статус на: 2026-07-02, после первого живого прогона в Docker.   
+      4  
+      5  ## Сделано (весь код, тесты, документация)
+      6  - Фаза 0: структура каталогов, git, `.gitignore`.
+     ...
+      11    клавиатуры, `texts/messages.py` — вежливые тексты на "Вы", ре
+          трай-текст из ТЗ дословно.
+      12  - Фаза 4: `main.py` (Bot/Dispatcher/httpx.AsyncClient DI), `.en
+          v.example`.
+      13  - Фаза 5: `docker/Dockerfile`, `docker-compose.yml` (в корне — 
+          см. DEVLOG), `.dockerignore`.
+      14 -- Фаза 7: `README.md` (все 9 пунктов раздела 10 CLAUDE.md), сам
+         -опроверка по разделу 8                                         
+      15 -  пройдена явно (ruff/black чисто, grep на TODO/`except Excepti
+         -on`/закомментированный                                         
+      16 -  код — ничего не найдено), `ruff check .`/`black --check .` — 
+         -без замечаний.                                                 
+      17 -- 30/30 юнит-тестов зелёные (`pytest tests/ -v`).              
+      18 -- Mock-API проверен живым несколько раз в ходе сессии, последни
+         -й раз — только что (`200`).                                    
+      19 -- 7 коммитов, атомарно по фазам, история чистая (`git log --one
+         -line`).                                                        
+      14 +- Фаза 7: `README.md` (все 9 пунктов раздела 10 CLAUDE.md), сам
+         +опроверка по разделу 8 пройдена.                               
+      15 +- Push в GitHub: `git@github.com:ring-rong/tzliquidbot.git`, ве
+         +тка `main`.                                                    
+      16 +- **Живой прогон в Docker выполнен владельцем**: `docker compos
+         +e up --build` поднял                                           
+      17 +  бота, полный флоу `/start` → имя → телефон → время → карточка
+         + → отправка пройден в                                          
+      18 +  реальном Telegram-клиенте (скриншот). Ретрай отработал вживую
+         + с точным текстом из ТЗ.                                       
+      19 +- **Найден и исправлен реальный баг по итогам живого прогона**:
+         + `crm_client.py` ловил                                         
+      20 +  `ValidationError` (200, но тело не по контракту) в общем retr
+         +y-цикле вместе с                                               
+      21 +  500/429 — теперь это `CrmNonRetryableError` сразу, без ретрае
+         +в (см. DEVLOG, "Фаза 6,                                        
+      22 +  продолжение"). `API_CONTRACT.md` раздел 5 обновлён владельцем
+         + с явным правилом на                                           
+      23 +  этот случай. Добавлен respx-тест на этот сценарий.           
+      24 +- 31/31 юнит-тестов зелёные (`pytest tests/ -v`), `ruff`/`black
+         +` без замечаний.                                               
+      25 +- Mock-API проверен живым несколько раз, актуален.             
+      26 +- 9 коммитов, атомарно по фазам + по находкам, история чистая (
+         +`git log --oneline`).                                          
+      27  
+      28  ## Не сделано мной физически — требует владельца (см. README ра
+          здел 8, DEVLOG фазы 4-6)
+      22 -- **`docker compose up --build` с нуля** — в среде разработки н
+         -ет Docker-демона.                                              
+      23 -- **`BOT_TOKEN`** — не создан (создаётся вручную через @BotFath
+         -er), в `.env` не вписан.                                       
+      24 -- **Живой прогон `/start` → карточка → отправка** в реальном Te
+         -legram-клиенте, со                                             
+      25 -  скриншотом/логом `200`.                                      
+      26 -- **Живой прогон ретрая** (`500`/`429` от реального Beeceptor, 
+         -видимое сообщение                                              
+      27 -  "Сервер CRM временно занят...") — логика доказана respx-теста
+         -ми, но не поймана вживую.                                      
+      29 +- **Живой прогон "счастливого пути"** (валидный `200` → сообщен
+         +ие об успехе,                                                  
+      30 +  скриншот) — пока недостижим: у варианта "Success" правила Bee
+         +ceptor не включена                                             
+      31 +  шаблонизация ответа (см. DEVLOG), из-за чего каждый `200` воз
+         +вращает буквальные                                             
+      32 +  `{{...}}` вместо реальных значений. Нужно проверить тумблер ш
+         +аблонизации в                                                  
+      33 +  редакторе правила на Beeceptor и повторить прогон.           
+      34 +- **Живой прогон ретрая на литеральном `500`/`429`** (не на нев
+         +алидном `200`, как                                             
+      35 +  получилось в первом прогоне) — retry-логика для этих кодов уж
+         +е покрыта                                                      
+      36 +  respx-тестами и один раз косвенно подтверждена вживую (тем же
+         + ретрай-текстом на                                             
+      37 +  другом триггере), но чистый повтор на 500/429 ещё не пойман н
+         +а скриншоте. Веса                                              
+      38 +  70/20/10 — обычно ловится за 5-10 отправок подряд.           
+      39  - **Проверка асинхронности на двух чатах** — по коду гарантируе
+          тся (один event loop,
+      40    ни одного блокирующего вызова, `asyncio.sleep` вместо `time.s
+          leep`, `httpx.AsyncClient`
+      41    вместо синхронного `requests`), но ручная проверка на двух ре
+          альных аккаунтах не
+      42    выполнена.
+      43  
+      44  ## Открытые вопросы к владельцу
+      34 -Нужен `BOT_TOKEN` (от @BotFather) и окружение с Docker, чтобы з
+         -акрыть пункты выше.                                            
+      35 -Один из вариантов: владелец сам прогоняет `docker compose up --
+         -build` +                                                       
+      36 -ручной сценарий по README разделам 4/5, делает скриншоты/логи и
+         - добавляет их в отчёт.                                         
+      37 -Альтернатива: если владелец готов передать `BOT_TOKEN`, можно п
+         -однять `python -m                                              
+      38 -app.main` в фоне текущего окружения разработки (сеть до `api.te
+         -legram.org` и до                                               
+      39 -Mock-CRM подтверждена доступной) и вместе провести живую провер
+         -ку — тогда логи ретраев                                        
+      40 -снимет ассистент, а скриншоты интерфейса — владелец со своего т
+         -елефона.                                                       
+      45 +1. Проверить/включить шаблонизацию ответа для варианта "Success
+         +" в правиле Beeceptor.                                         
+      46 +2. Прогнать ещё несколько отправок, чтобы поймать живой `200` (
+         +успех) и живой                                                 
+      47 +   `500`/`429` (не через невалидный `200`), приложить скриншоты
+         +/логи.                                                         
+      48 +3. Проверить асинхронность на двух Telegram-чатах одновременно.
+      49 +После этого — финальная сверка по чек-листу раздела 11 CLAUDE.m
+         +d и итоговый отчёт.                                            
+
+  Committed ee8b067, pushed to main (ctrl+o to expand)
+
+● Fixed and pushed. Summary of the change in app/services/crm_client.py:
+
+  - response.json() raising (body isn't JSON at all) → still retryable, logged
+  as before
+  - CrmSuccessResponse.model_validate() raising ValidationError on an
+  otherwise-valid 200 JSON body → now CrmNonRetryableError, raised immediately,
+  no on_retry call, no asyncio.sleep — this is exactly the "same broken response
+  3 times in a row" scenario your log showed
+
+  Added test_200_with_contract_violating_body_fails_immediately_without_retry
+  asserting call_count == 1 and retry_calls == []. All 31 tests green,
+  ruff/black clean, pushed as c8f30d8 and ee8b067.
+
+  Practical effect next time you run it: instead of the 3-attempt/~14s retry
+  theater followed by a critical-failure message, a contract-violating 200 now
+  fails fast with an honest error — which also makes it easier to see when
+  you've fixed the Beeceptor templating toggle, since a broken response will no
+  longer look like a transient "server busy" case.
+
+  Two things still open per PROGRESS.md: catching a real 200 success (blocked on
+  that Beeceptor templating toggle) and a real literal 500/429 retry
+  screenshot. Send those over when you have them.
+
+✻ Worked for 3m 1s
+
+❯ нужно исправь работу с запросами и бот не переживает перезагрузку/пересборку  
+  контейнера, чат просто зависает и приходится снова отправлять /start команду, 
+  нужен redis ubuntu@ubuntu:~/tzliquidbot/tzliquidbot$ docker compose logs -f   
+  bot-1  | INFO:aiogram.dispatcher:Start polling                                
+  bot-1  | INFO:aiogram.dispatcher:Run polling for bot @tzliquid_bot            
+  id=8800067389 - 'tzliquidbot'                                                 
+  bot-1  | INFO:aiogram.event:Update id=817491119 is not handled. Duration 1 ms 
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491120 is not handled. Duration 1 ms 
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491121 is not handled. Duration 0 ms 
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491122 is not handled. Duration 0 ms 
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491123 is handled. Duration 807 ms   
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491124 is handled. Duration 225 ms   
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491125 is handled. Duration 266 ms   
+  by bot id=8800067389                                                          
+  bot-1  | INFO:aiogram.event:Update id=817491126 is handled. Duration 442 ms   
+  by bot id=8800067389                                                          
+  bot-1  | INFO:httpx:HTTP Request: POST                                        
+  https://mpfbba1a2c2708d21084.free.beeceptor.com/v1/leads "HTTP/1.1 200 OK"    
+  bot-1  | ERROR:app.services.crm_client:CRM подтвердила приём (200), но тело   
+  не соответствует контракту: '{\n  "status": "ok",\n  "lead_id":               
+  "lead_demo",\n  "request_id": "",\n  "received_at": "Thu Jul 02 2026 10:30:39 
+  GMT+0000 (Coordinated Universal Time)"\n}' — 2 validation errors for          
+  CrmSuccessResponse                                                            
+  bot-1  | request_id                                                           
+  bot-1  |   Input should be a valid UUID, invalid length: expected length 32   
+  for simple format, found 0 [type=uuid_parsing, input_value='',                
+  input_type=str]                                                               
+  bot-1  |     For further information visit                                    
+  https://errors.pydantic.dev/2.13/v/uuid_parsing                               
+  bot-1  | received_at                                                          
+  bot-1  |   Input should be a valid datetime or date, invalid character in     
+  year [type=datetime_from_date_parsing, input_value='Thu Jul 02 2026           
+  10:30:39...dinated Universal Time)', input_type=str]                          
+  bot-1  |     For further information visit                                    
+  https://errors.pydantic.dev/2.13/v/datetime_from_date_parsing                 
+  bot-1  | ERROR:app.handlers.confirm:Отправка заявки                           
+  788974e7-b652-480b-a405-dbd6e43b140c не удалась: CRM ответила успехом, но     
+  тело не соответствует контракту                                               
+  bot-1  | INFO:aiogram.event:Update id=817491127 is handled. Duration 3850 ms  
+  by bot id=8800067389                                                          
+
+  Read 1 file, called context7, ran 2 shell commands (ctrl+o to expand)
+
+● Update(app/config.py)
+  ⎿  Added 1 line
+      10      retry_attempts: int = 3
+      11      retry_delay_seconds: float = 3.0
+      12      crm_request_timeout_seconds: float = 10.0
+      13 +    redis_url: str = "redis://redis:6379/0"                    
+      14  
+      15  
+      16  settings = Settings()
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(app/main.py)
+  ⎿  Added 8 lines, removed 4 lines
+      3  
+      4  import httpx
+      5  from aiogram import Bot, Dispatcher
+      6 -from aiogram.fsm.storage.memory import MemoryStorage            
+      6 +from aiogram.fsm.storage.redis import RedisStorage              
+      7  
+      8  from app.config import settings
+      9  from app.handlers import router
+     ...
+      13      logging.basicConfig(level=logging.INFO)
+      14  
+      15      bot = Bot(token=settings.bot_token)
+      16 -    dp = Dispatcher(storage=MemoryStorage())                   
+      16 +    storage = RedisStorage.from_url(settings.redis_url)        
+      17 +    dp = Dispatcher(storage=storage)                           
+      18      dp.include_router(router)
+      19  
+      19 -    async with httpx.AsyncClient(timeout=settings.crm_request_t
+         -imeout_seconds) as http_client:                                
+      20 -        await dp.start_polling(bot, http_client=http_client)   
+      20 +    try:                                                       
+      21 +        async with httpx.AsyncClient(timeout=settings.crm_reque
+         +st_timeout_seconds) as http_client:                            
+      22 +            await dp.start_polling(bot, http_client=http_client
+         +)                                                              
+      23 +    finally:                                                   
+      24 +        await storage.close()                                  
+      25  
+      26  
+      27  if __name__ == "__main__":
+
+● Now the requirements, docker-compose, and .env.example:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(requirements.txt)
+  ⎿  Added 1 line
+      3  pydantic==2.13.4
+      4  pydantic-settings==2.14.2
+      5  python-dotenv==1.2.2
+      6 +redis[hiredis]==7.4.1                                           
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(docker-compose.yml)
+  ⎿  Added 12 lines
+       5        dockerfile: docker/Dockerfile
+       6      env_file:
+       7        - .env
+       8 +    depends_on:                                                
+       9 +      - redis                                                  
+      10      restart: unless-stopped
+      11 +                                                               
+      12 +  redis:                                                       
+      13 +    image: redis:7-alpine                                      
+      14 +    command: ["redis-server", "--appendonly", "yes"]           
+      15 +    volumes:                                                   
+      16 +      - redis-data:/data                                       
+      17 +    restart: unless-stopped                                    
+      18 +                                                               
+      19 +volumes:                                                       
+      20 +  redis-data:                                                  
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(.env.example)
+  ⎿  Added 7 lines
+      11  RETRY_ATTEMPTS=3
+      12  RETRY_DELAY_SECONDS=3
+      13  CRM_REQUEST_TIMEOUT_SECONDS=10
+      14 +                                                               
+      15 +# Redis для FSM-состояний — переживает перезапуск/пересборку ко
+         +нтейнера бота                                                  
+      16 +# (сам Redis живёт отдельным сервисом в docker-compose.yml с им
+         +енованным томом).                                              
+      17 +# Дефолт рассчитан на docker compose (хост "redis" — имя сервис
+         +а). Для локального                                             
+      18 +# запуска без Docker (раздел 4 README) поднимите Redis отдельно
+         + и укажите свой адрес,                                         
+      19 +# например redis://localhost:6379/0.                           
+      20 +REDIS_URL=redis://redis:6379/0                                 
+
+● Now the "silent hang" fix — a fallback handler so unmatched updates get a
+  reply instead of being silently dropped (this is what caused the "chat hangs"
+  symptom in your log — those is not handled lines).
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(app/texts/messages.py)
+  ⎿  Added 7 lines
+      30      "анкету заново."
+      31  )
+      32  
+      33 +UNKNOWN_INPUT = (                                              
+      34 +    "Не получилось разобрать это сообщение. Если хотите оставит
+         +ь заявку, "                                                    
+      35 +    "наберите /start."                                         
+      36 +)                                                              
+      37 +                                                               
+      38 +STALE_BUTTON = "Эта кнопка уже устарела. Наберите /start, чтобы
+         + начать заново."                                               
+      39 +                                                               
+      40  _RETRY_TEXTS = (
+      41      "Сервер CRM временно занят, пытаюсь отправить ещё раз...",
+      42      "Сервер CRM всё ещё занят, пробую ещё раз...",
+
+● Write(app/handlers/fallback.py)
+  ⎿  Wrote 23 lines to app/handlers/fallback.py
+       1 from aiogram import Router
+       2 from aiogram.types import CallbackQuery, Message
+       3 
+       4 from app.texts import messages
+       5 
+       6 router = Router(name="fallback")
+       7 
+       8 
+       9 @router.message()
+      10 async def handle_unexpected_message(message: Message) -> None:
+     … +17 lines (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(app/handlers/__init__.py)
+  ⎿  Added 4 lines
+      1  from aiogram import Router
+      2  
+      3  from app.handlers.confirm import router as confirm_router
+      4 +from app.handlers.fallback import router as fallback_router     
+      5  from app.handlers.start import router as start_router
+      6  from app.handlers.survey import router as survey_router
+      7  
+     ...
+       9  router.include_router(start_router)
+      10  router.include_router(survey_router)
+      11  router.include_router(confirm_router)
+      12 +# Ловит всё, что не подошло выше — обязательно последним, иначе
+         + перехватит                                                    
+      13 +# сообщения/колбэки, для которых есть более специфичный хендлер
+         +.                                                              
+      14 +router.include_router(fallback_router)                         
+  Ran 2 shell commands (ctrl+o to expand)
+
+● All wires up. Running lint + the full test suite.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Same adjacent-literal artifact as before — cleaning it up.
+
+● Update(app/texts/messages.py)
+  ⎿  Added 1 line, removed 3 lines
+      30      "анкету заново."
+      31  )
+      32  
+      33 -UNKNOWN_INPUT = (                                              
+      34 -    "Не получилось разобрать это сообщение. Если хотите оставит
+         -ь заявку, " "наберите /start."                                 
+      35 -)                                                              
+      33 +UNKNOWN_INPUT = "Не получилось разобрать это сообщение. Если хо
+         +тите оставить заявку, наберите /start."                        
+      34  
+      35  STALE_BUTTON = "Эта кнопка уже устарела. Наберите /start, чтобы
+           начать заново."
+      36  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Good, black wrapped it cleanly this time. All 31 tests still pass, lint clean.
+  Now updating README (sections 3, 4, 5, 8) and DEVLOG.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now updating README §2, §3, §4, §5, §8 to reflect Redis and the fallback
+  handler.
+
+● Update(README.md)
+  ⎿  Added 6 lines, removed 3 lines
+      20    проглатывается.
+      21  - **pydantic-settings** — типизированный `Settings` из `.env`, 
+          ни один секрет/URL/число
+      22    ретраев не захардкожен в коде (`app/config.py`).
+      23 -- **MemoryStorage для FSM** — заявка тестового задания не много
+         -инстансная, состояние                                          
+      24 -  теряется только при рестарте процесса контейнера, что для это
+         -го объёма приемлемо                                            
+      25 -  (см. раздел 8 "Известные ограничения" про переход на `RedisSt
+         -orage`).                                                       
+      23 +- **RedisStorage для FSM** — состояние анкеты переживает рестар
+         +т/пересборку                                                   
+      24 +  контейнера бота (Redis — отдельный сервис с именованным томом
+         + в                                                             
+      25 +  `docker-compose.yml`). Живой прогон показал, к чему приводит 
+         +потеря состояния                                               
+      26 +  на `MemoryStorage`: сообщения пользователя, отправленные в уж
+         +е "забытом" шаге                                               
+      27 +  анкеты, молча дропались диспетчером — чат выглядел зависшим д
+         +о `/start`. Redis                                              
+      28 +  с `--appendonly yes` закрывает это для обычных перезапусков к
+         +онтейнера бота.                                                
+      29  - **pytest + pytest-asyncio + respx** — retry-логика проверяетс
+          я детерминированно
+      30    (respx подставляет фиксированную последовательность ответов),
+           не завязываясь на то,
+      31    выпадет ли реальному Beeceptor `500`/`429` именно в момент пр
+          огона тестов.
+
+● Update(README.md)
+  ⎿  Added 7 lines, removed 2 lines
+      50  │   ├── validators/
+      51  │   │   ├── name.py             # validate_name(): 2–50 символо
+          в
+      52  │   │   └── phone.py            # validate_phone(): нормализаци
+          я к +7XXXXXXXXXX
+      53 +│   │   ├── confirm.py          # сводная карточка, отправка в 
+         +CRM, ретрай/рестарт                                            
+      54 +│   │   └── fallback.py         # "поймать всё": вежливый ответ
+         + на message()/callback_query()                                 
+      55 +│   │                           #   без активного состояния — в
+         +место молчаливого дропа апдейта                                
+      56  │   ├── services/crm_client.py  # send_lead(): async POST + ret
+          ry-цикл (3 попытки/3 сек)
+      57  │   ├── models/lead.py          # Lead, PreferredTime, CrmSucce
+          ssResponse, CrmErrorResponse
+      58  │   └── texts/messages.py       # все пользовательские тексты о
+          дним модулем
+      59  ├── tests/
+      60  │   ├── conftest.py             # тестовые заглушки BOT_TOKEN/C
+          RM_ENDPOINT_URL
+      61  │   ├── test_validators.py      # 25 тестов на граничные случаи
+           имени/телефона
+      59 -│   └── test_crm_client.py      # 5 respx-тестов: успех, 500→50
+         -0→200, 429×3→сбой, сеть, non-retryable                         
+      62 +│   └── test_crm_client.py      # 6 respx-тестов: успех, 500→50
+         +0→200, 429×3→сбой, сеть,                                       
+      63 +│                                #   non-retryable статус, 200 
+         +с телом не по контракту                                        
+      64  ├── docker/Dockerfile           # python:3.12-slim, непривилеги
+          рованный пользователь
+      61 -├── docker-compose.yml          # в корне репозитория — см. DEV
+         -LOG.md, почему не в docker/                                    
+      65 +├── docker-compose.yml          # bot + redis (том для персисте
+         +нтности FSM), в корне                                          
+      66 +│                                #   репозитория — см. DEVLOG.m
+         +d, почему не в docker/                                         
+      67  ├── .env.example                # пустые BOT_TOKEN/CRM_ENDPOINT
+          _URL, заполненные retry-дефолты
+      68  ├── .dockerignore / .gitignore
+      69  ├── requirements.txt / requirements-dev.txt
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(README.md)
+  ⎿  Added 8 lines, removed 9 lines
+      36  ```
+      37  lead-bot/
+      38  ├── app/
+      39 -│   ├── main.py                # точка входа: Bot/Dispatcher, о
+         -дин httpx.AsyncClient на всё время жизни                       
+      40 -│   ├── config.py               # Settings (pydantic-settings):
+         - BOT_TOKEN, CRM_ENDPOINT_URL, retry-параметры                  
+      39 +│   ├── main.py                # точка входа: Bot/Dispatcher(Re
+         +disStorage), httpx.AsyncClient на всё время жизни              
+      40 +│   ├── config.py               # Settings (pydantic-settings):
+         + BOT_TOKEN, CRM_ENDPOINT_URL, retry-параметры, REDIS_URL       
+      41  │   ├── handlers/
+      42 -│   │   ├── __init__.py         # сборка всех роутеров в один  
+      42 +│   │   ├── __init__.py         # сборка всех роутеров в один (
+         +fallback — последним)                                          
+      43  │   │   ├── start.py            # /start → приветствие, вход в 
+          FSM
+      44  │   │   ├── survey.py           # шаги опроса: имя → телефон → 
+          время (кнопки)
+      45 -│   │   └── confirm.py          # сводная карточка, отправка в 
+         -CRM, ретрай/рестарт                                            
+      45 +│   │   ├── confirm.py          # сводная карточка, отправка в 
+         +CRM, ретрай/рестарт                                            
+      46 +│   │   └── fallback.py         # "поймать всё": вежливый ответ
+         + на message()/callback_query()                                 
+      47 +│   │                           #   без активного состояния — в
+         +место молчаливого дропа апдейта                                
+      48  │   ├── states/lead_form.py     # LeadForm(StatesGroup): name, 
+          phone, time, confirm
+      49  │   ├── keyboards/
+      50  │   │   ├── time_kb.py          # инлайн-клавиатура Утро/День/В
+          ечер + маппинг в PreferredTime
+     ...
+      52  │   ├── validators/
+      53  │   │   ├── name.py             # validate_name(): 2–50 символо
+          в
+      54  │   │   └── phone.py            # validate_phone(): нормализаци
+          я к +7XXXXXXXXXX
+      53 -│   │   ├── confirm.py          # сводная карточка, отправка в 
+         -CRM, ретрай/рестарт                                            
+      54 -│   │   └── fallback.py         # "поймать всё": вежливый ответ
+         - на message()/callback_query()                                 
+      55 -│   │                           #   без активного состояния — в
+         -место молчаливого дропа апдейта                                
+      55  │   ├── services/crm_client.py  # send_lead(): async POST + ret
+          ry-цикл (3 попытки/3 сек)
+      56  │   ├── models/lead.py          # Lead, PreferredTime, CrmSucce
+          ssResponse, CrmErrorResponse
+      57  │   └── texts/messages.py       # все пользовательские тексты о
+          дним модулем
+     ...
+      61  │   └── test_crm_client.py      # 6 respx-тестов: успех, 500→50
+          0→200, 429×3→сбой, сеть,
+      62  │                                #   non-retryable статус, 200 
+          с телом не по контракту
+      63  ├── docker/Dockerfile           # python:3.12-slim, непривилеги
+          рованный пользователь
+      65 -├── docker-compose.yml          # bot + redis (том для персисте
+         -нтности FSM), в корне                                          
+      66 -│                                #   репозитория — см. DEVLOG.m
+         -d, почему не в docker/                                         
+      64 +├── docker-compose.yml          # bot + redis (именованный том 
+         +для персистентности FSM),                                      
+      65 +│                                #   в корне репозитория — см. 
+         +DEVLOG.md, почему не в docker/                                 
+      66  ├── .env.example                # пустые BOT_TOKEN/CRM_ENDPOINT
+          _URL, заполненные retry-дефолты
+      67  ├── .dockerignore / .gitignore
+      68  ├── requirements.txt / requirements-dev.txt
+
+● Now sections 4/5/6/8 need updating for .env (REDIS_URL), Docker, and the
+  known-limitations entry.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(README.md)
+  ⎿  Added 2 lines
+      83  # впишите в .env:
+      84  #   BOT_TOKEN=<токен от @BotFather>
+      85  #   CRM_ENDPOINT_URL=https://mpfbba1a2c2708d21084.free.beecepto
+          r.com/v1/leads
+      86 +#   REDIS_URL=redis://localhost:6379/0   # дефолт redis://redis
+         +:6379/0 рассчитан на docker compose                            
+      87  
+      88 +docker run -d --name lead-bot-redis -p 6379:6379 redis:7-alpine
+         +   # или свой локальный Redis                                  
+      89  python -m app.main
+      90  ```
+      91  
+
+● Update(README.md)
+  ⎿  Added 10 lines, removed 4 lines
+      111  
+      112  Обязательные переменные окружения (см. `.env.example`): `BOT_T
+           OKEN`,
+      113  `CRM_ENDPOINT_URL`. `RETRY_ATTEMPTS`/`RETRY_DELAY_SECONDS`/
+      114 -`CRM_REQUEST_TIMEOUT_SECONDS` необязательны — в `app/config.py
+          -` уже стоят дефолты,                                          
+      115 -совпадающие с ТЗ (3 попытки, 3 секунды).                      
+      114 +`CRM_REQUEST_TIMEOUT_SECONDS`/`REDIS_URL` необязательны — в `a
+          +pp/config.py` уже стоят                                       
+      115 +дефолты, совпадающие с ТЗ (3 попытки, 3 секунды) и с топологие
+          +й `docker-compose.yml`                                        
+      116 +(`REDIS_URL=redis://redis:6379/0` — `redis` здесь имя сервиса,
+          + не хост).                                                    
+      117  
+      117 -Контейнер запускает `python -m app.main` от непривилегированно
+          -го пользователя                                               
+      118 -(`botuser`, не root). Остановить: `docker compose down`.      
+      118 +`docker-compose.yml` поднимает два сервиса: `bot` (запускает `
+          +python -m app.main` от                                        
+      119 +непривилегированного пользователя `botuser`, не root) и `redis
+          +` (`redis:7-alpine` с                                         
+      120 +`--appendonly yes`, данные — в именованном томе `redis-data`).
+          + FSM-состояние анкеты                                         
+      121 +переживает `docker compose restart bot` и `docker compose up -
+          +-build` — том не                                              
+      122 +пересоздаётся при обычной пересборке. Полностью сбросить состо
+          +яние (например, для                                           
+      123 +чистого прогона тестового сценария) — `docker compose down -v`
+          +, это осознанно удаляет                                       
+      124 +том вместе с контейнерами.                                    
+      125  
+      126  ## 6. Настройка Mock-API
+      127  
+
+● Now section 8 (known limitations) — replace the MemoryStorage entry since it's
+  now resolved, and add a note about the fallback handler.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(README.md)
+  ⎿  Added 12 lines, removed 5 lines
+      176  
+      177  ## 8. Известные ограничения
+      178  
+      179 -- **`MemoryStorage` вместо `RedisStorage`.** Состояние FSM жив
+          -ёт в памяти процесса —                                        
+      180 -  при рестарте контейнера все незавершённые анкеты теряются. Д
+          -ля тестового задания                                          
+      181 -  этого достаточно. Для мульти-инстанс продакшена: заменить `M
+          -emoryStorage()` на                                            
+      182 -  `RedisStorage.from_url(...)` в `app/main.py` (aiogram поддер
+          -живает это из коробки,                                        
+      183 -  интерфейс `BaseStorage` не меняется) и поднять Redis рядом в
+          - `docker-compose.yml`.                                        
+      179 +- **`docker compose down -v` стирает состояние FSM.** Redis хр
+          +анит данные в                                                 
+      180 +  именованном томе, который переживает обычный рестарт/пересбо
+          +рку, но `-v` — это                                            
+      181 +  осознанное удаление тома, и после него все незавершённые анк
+          +еты пользователей                                             
+      182 +  теряются. Для мульти-инстанс продакшена дополнительно стоит 
+          +задать `state_ttl`/                                           
+      183 +  `data_ttl` в `RedisStorage` (сейчас без TTL — заявки висят в
+          + Redis, пока не                                               
+      184 +  завершатся или пока их не сотрёт `-v`), чтобы забытые на сер
+          +едине опроса чаты не                                          
+      185 +  копились бесконечно.                                        
+      186 +- **Fallback-хендлер (`handlers/fallback.py`) — по тексту, а н
+          +е по восстановлению                                           
+      187 +  состояния.** Если сообщение/колбэк не попали ни в один актив
+          +ный шаг анкеты (после                                         
+      188 +  `docker compose down -v`, устаревшей кнопки на карточке или 
+          +редкого рассинхрона),                                         
+      189 +  бот вежливо просит набрать `/start`, а не пытается угадать, 
+          +что имел в виду                                               
+      190 +  пользователь, и не восстанавливает потерянные данные анкеты.
+      191  - **Двойная отправка одной карточки не дебаунсится.** Если пол
+           ьзователь очень быстро
+      192    дважды нажмёт "Отправить заявку", уйдут два независимых запр
+           оса (с одним и тем же
+      193    `request_id`, так что CRM с настоящей идемпотентностью не со
+           здаст дубль — но
+
+● Update(README.md)
+  ⎿  Added 5 lines, removed 2 lines
+      166  - `429 × 3` — все три попытки исчерпаны, поднимается `CrmDeliv
+           eryFailed`;
+      167  - сетевой таймаут (`httpx.ConnectTimeout`) на первой попытке в
+           едёт себя как `500` —
+      168    ретраится и добивается успеха на второй;
+      169 -- `422` (non-retryable) — падает сразу, без единой повторной п
+          -опытки.                                                       
+      169 +- `422` (non-retryable) — падает сразу, без единой повторной п
+          +опытки;                                                       
+      170 +- `200`, но тело не соответствует контракту (пойманный вживую 
+          +случай — Beeceptor без                                        
+      171 +  включённой шаблонизации возвращает `{{...}}` буквально) — то
+          +же падает сразу, без                                          
+      172 +  единой повторной попытки, а не молотит тот же битый ответ 3 
+          +раза подряд.                                                  
+      173  
+      171 -Запуск: `pytest tests/test_crm_client.py -v` — все 5 зелёные. 
+      174 +Запуск: `pytest tests/test_crm_client.py -v` — все 6 зелёные. 
+      175  
+      176  **Ручная/e2e проверка на реальном Beeceptor-эндпоинте:** должн
+           а быть выполнена и
+      177  задокументирована владельцем репозитория со скриншотами/логами
+            — см. раздел 8 ниже,
+
+● Now let's proofread the whole README and confirm markdown structure, then
+  update DEVLOG and commit.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(README.md)
+  ⎿  Added 8 lines, removed 7 lines
+      200  - **Регэксп телефона принимает только явно перечисленные в ТЗ 
+           форматы** (`+7`/`8` +
+      201    10 цифр в допустимой группировке). Голый 10-значный номер бе
+           з префикса
+      202    (`9123456789`) сознательно не принимается — в ТЗ такой вариа
+           нт не упомянут.
+      203 -- **Docker-сборка и живой ручной прогон в Telegram не выполнен
+          -ы мной в рамках этой                                          
+      204 -  сессии разработки** — в окружении, где писался код, нет Dock
+          -er-демона и нет                                               
+      205 -  `BOT_TOKEN`/доступа к живому Telegram-клиенту (детали и что 
+          -именно проверено вместо                                       
+      206 -  этого — в `DEVLOG.md`, фазы 4–6). Код и тесты полностью гото
+          -вы; `docker compose up                                        
+      207 -  --build` с нуля и полный ручной прогон (включая проверку аси
+          -нхронности на двух                                            
+      208 -  чатах и живого ретрая `500`/`429`) — необходимый последний ш
+          -аг, который должен                                            
+      209 -  выполнить владелец репозитория по инструкциям разделов 4/5/6
+          - этого README.                                                
+      203 +- **Живой прогон выполнен частично.** `docker compose up --bui
+          +ld` и полный флоу                                             
+      204 +  `/start` → карточка → отправка → ретрай пройдены владельцем 
+          +на реальном Docker и                                          
+      205 +  реальном Telegram-клиенте (среда, где писался код, не имела 
+          +Docker-демона —                                               
+      206 +  подробности в `DEVLOG.md`, фазы 4–6). Ещё не пойманы вживую:
+          + успешный `200` с                                             
+      207 +  подтверждением (заблокировано настройками шаблонизации на Be
+          +eceptor, см. DEVLOG),                                         
+      208 +  литеральный `500`/`429` (единственный пойманный вживую ретра
+          +й был вызван                                                  
+      209 +  контрактно-невалидным `200`, не самими 500/429) и проверка а
+          +синхронности на двух                                          
+      210 +  параллельных чатах.                                         
+      211  
+      212  ## 9. DEVLOG
+      213  
+
+● Now updating DEVLOG with this Redis/fallback-handler change and committing.
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(DEVLOG.md)
+  ⎿  Added 46 lines
+      298  разница между `ValueError` и `pydantic.ValidationError` показа
+           лась на тот момент
+      299  достаточно тонкой, чтобы не развести их явно. Живой прогон с р
+           еальным Beeceptor вскрыл
+      300  это на практике, `API_CONTRACT.md` был обновлён по итогам, код
+            — следом.
+      301 +                                                              
+      302 +## [Фаза 6, ещё одна находка] MemoryStorage не переживает рест
+          +арт контейнера                                                
+      303 +                                                              
+      304 +Решение/что сделано:                                          
+      305 +Владелец сообщил о втором реальном симптоме с того же живого п
+          +рогона: после                                                 
+      306 +перезапуска/пересборки контейнера бота чат "зависал" — сообщен
+          +ия переставали                                                
+      307 +обрабатываться, помогал только повторный `/start`. Лог показал
+          + классическую картину:                                        
+      308 +несколько `Update ... is not handled. Duration 0-1 ms` подряд,
+          + затем `/start`                                               
+      309 +обрабатывается нормально. Причина в архитектуре, не в баге лог
+          +ики: `MemoryStorage`                                          
+      310 +(Фаза 4) хранит FSM-состояние в памяти процесса; при рестарте 
+          +контейнера состояние                                          
+      311 +обнуляется, а хендлеры `survey.py`/`confirm.py` зарегистрирова
+          +ны на конкретные                                              
+      312 +`LeadForm.*` состояния — сообщение без активного состояния не 
+          +match'ится ни одним                                           
+      313 +роутером и молча отбрасывается диспетчером aiogram (в логе это
+          + и есть "is not                                               
+      314 +handled"). Внешне для пользователя это неотличимо от зависшего
+          + бота.                                                        
+      315 +                                                              
+      316 +Сделано два независимых исправления:                          
+      317 +1. **`RedisStorage` вместо `MemoryStorage`** (`app/main.py`) —
+          + `Dispatcher(storage=                                         
+      318 +   RedisStorage.from_url(settings.redis_url))`, `storage.close
+          +()` в `finally`. Новый                                        
+      319 +   сервис `redis` в `docker-compose.yml` (`redis:7-alpine`, `-
+          +-appendonly yes`,                                             
+      320 +   именованный том `redis-data`) — состояние переживает `docke
+          +r compose restart bot`                                        
+      321 +   и `docker compose up --build`, потому что том не привязан к
+          + жизненному циклу                                             
+      322 +   контейнера. `REDIS_URL` добавлен в `Settings`/`.env.example
+          +` с дефолтом                                                  
+      323 +   `redis://redis:6379/0`, рассчитанным на имя сервиса в compo
+          +se-сети.                                                      
+      324 +2. **`handlers/fallback.py`** — новый роутер, включённый после
+          +дним в                                                        
+      325 +   `app/handlers/__init__.py`, с `@router.message()`/`@router.
+          +callback_query()` без                                         
+      326 +   фильтров состояния — ловит буквально всё, что не подошло бо
+          +лее специфичным                                               
+      327 +   хендлерам, и отвечает вежливой просьбой набрать `/start` вм
+          +есто молчания.                                                
+      328 +                                                              
+      329 +Почему два исправления, а не одно:                            
+      330 +Redis решает *причину* (данные переживают рестарт), но не устр
+          +аняет саму возможность                                        
+      331 +рассинхрона в принципе — например, `docker compose down -v` ос
+          +ознанно стирает том,                                          
+      332 +TTL пока не настроен (см. раздел 8 README про известные ограни
+          +чения), у пользователя                                        
+      333 +может быть открыта старая карточка с кнопками из давно истёкше
+          +й сессии. Fallback —                                          
+      334 +защита на уровне *симптома*: что бы ни привело к отсутствию ак
+          +тивного состояния, чат                                        
+      335 +больше никогда не будет молчать в ответ на реальное сообщение 
+          +пользователя. Это ровно                                       
+      336 +тот случай, где чинить только первопричину было бы неполным ре
+          +шением — независимая                                          
+      337 +подстраховка на уровне UX стоит меньше, чем повторный репорт "
+          +бот завис" при любой                                          
+      338 +другой причине потери состояния, которую я не предвидел.      
+      339 +                                                              
+      340 +Что пошло не так, если пошло, и как исправлено:               
+      341 +Ничего в процессе реализации — сверился с Context7 по `RedisSt
+          +orage`/`from_url`                                             
+      342 +(конструктор, `close()`), синтаксис совпал с ожиданиями по aio
+          +gram 3.x. Единственная                                        
+      343 +находка — сам факт бага, обнаруженный только благодаря живому 
+          +прогону владельца; ни                                         
+      344 +respx-тесты, ни юнит-тесты на валидаторы такой класс проблем (
+          +архитектура хранения                                          
+      345 +состояния между процессами) в принципе не покрывают — это подт
+          +верждает, зачем раздел                                        
+      346 +6 CLAUDE.md требовал именно ручной e2e-прогон, а не только юни
+          +т-тесты.                                                      
+
+● Now updating PROGRESS.md and committing everything together.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(PROGRESS.md)
+  ⎿  Added 13 lines, removed 1 line
+      21    500/429 — теперь это `CrmNonRetryableError` сразу, без ретрае
+          в (см. DEVLOG, "Фаза 6,
+      22    продолжение"). `API_CONTRACT.md` раздел 5 обновлён владельцем
+           с явным правилом на
+      23    этот случай. Добавлен respx-тест на этот сценарий.
+      24 +- **Найден и исправлен второй реальный баг**: `MemoryStorage` н
+         +е переживал                                                    
+      25 +  рестарт/пересборку контейнера бота — состояние FSM терялось, 
+         +сообщения без                                                  
+      26 +  активного состояния молча дропались диспетчером (в логе — "is
+         + not handled"),                                                
+      27 +  снаружи выглядело как зависший чат. Заменено на `RedisStorage
+         +` (`app/main.py`),                                             
+      28 +  добавлен сервис `redis` в `docker-compose.yml` с именованным 
+         +томом (переживает                                              
+      29 +  рестарт/пересборку, не переживает `docker compose down -v` — 
+         +осознанно). Плюс                                               
+      30 +  добавлен `handlers/fallback.py` — catch-all на message()/call
+         +back_query() без                                               
+      31 +  состояния, вежливо просит `/start` вместо молчания, на случай
+         + любой другой причины                                          
+      32 +  рассинхрона (см. DEVLOG, "Фаза 6, ещё одна находка").        
+      33  - 31/31 юнит-тестов зелёные (`pytest tests/ -v`), `ruff`/`black
+          ` без замечаний.
+      34  - Mock-API проверен живым несколько раз, актуален.
+      26 -- 9 коммитов, атомарно по фазам + по находкам, история чистая (
+         -`git log --oneline`).                                          
+      35 +- 10 коммитов, атомарно по фазам + по находкам, история чистая 
+         +(`git log --oneline`).                                         
+      36  
+      37  ## Не сделано мной физически — требует владельца (см. README ра
+          здел 8, DEVLOG фазы 4-6)
+      38 +- **Живой прогон Redis-фикса** — сам факт "переживает рестарт" 
+         +не проверен вживую                                             
+      39 +  (нужно: поднять бота, дойти до середины анкеты, `docker compo
+         +se restart bot`,                                               
+      40 +  продолжить анкету с того же места без потери данных).        
+      41  - **Живой прогон "счастливого пути"** (валидный `200` → сообщен
+          ие об успехе,
+      42    скриншот) — пока недостижим: у варианта "Success" правила Bee
+          ceptor не включена
+      43    шаблонизация ответа (см. DEVLOG), из-за чего каждый `200` воз
+          вращает буквальные
+
+● Update(PROGRESS.md)
+  ⎿  Added 7 lines, removed 3 lines
+      54    выполнена.
+      55  
+      56  ## Открытые вопросы к владельцу
+      57 -1. Проверить/включить шаблонизацию ответа для варианта "Success
+         -" в правиле Beeceptor.                                         
+      58 -2. Прогнать ещё несколько отправок, чтобы поймать живой `200` (
+         -успех) и живой                                                 
+      57 +1. `docker compose up --build` (или `docker compose up -d --bui
+         +ld`, если уже                                                  
+      58 +   запущено) — подтянуть новый сервис `redis` и код с `RedisSto
+         +rage`.                                                         
+      59 +2. Проверить: дойти до середины анкеты → `docker compose restar
+         +t bot` → продолжить —                                          
+      60 +   анкета должна продолжиться с того же места, а не молчать/про
+         +сить `/start`.                                                 
+      61 +3. Проверить/включить шаблонизацию ответа для варианта "Success
+         +" в правиле Beeceptor.                                         
+      62 +4. Прогнать ещё несколько отправок, чтобы поймать живой `200` (
+         +успех) и живой                                                 
+      63     `500`/`429` (не через невалидный `200`), приложить скриншоты
+          /логи.
+      60 -3. Проверить асинхронность на двух Telegram-чатах одновременно.
+      64 +5. Проверить асинхронность на двух Telegram-чатах одновременно.
+      65  После этого — финальная сверка по чек-листу раздела 11 CLAUDE.m
+          d и итоговый отчёт.
+
+● Now final lint/test pass, then commit and push.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All clean. Committing and pushing.
+
+  Committed 90d9454, pushed to main, ran 1 shell command (ctrl+o to expand)
+
+● Pushed as 90d9454. Summary of what changed:
+
+  Redis for FSM persistence
+  - app/main.py: MemoryStorage() → RedisStorage.from_url(settings.redis_url),
+  with storage.close() in finally
+  - docker-compose.yml: new redis service (redis:7-alpine, --appendonly yes,
+  named volume redis-data) — state survives docker compose restart bot and
+  docker compose up --build; only docker compose down -v wipes it (intentional)
+  - app/config.py / .env.example: REDIS_URL, defaulting to redis://redis:6379/0
+  for compose networking
+
+  Fallback handler (the actual fix for "chat hangs")
+  Your log's is not handled lines were the real smoking gun: with no active FSM
+  state, a user's message matched zero routers and aiogram silently dropped it.
+  Redis prevents most causes of that, but not all (down -v, a stale button from
+  an old session). Added app/handlers/fallback.py — catch-all
+  message()/callback_query() handlers registered last, replying with a polite
+  "наберите /start" instead of dead silence.
+
+  To pick this up:
+  docker compose up --build
+  This will add the redis container alongside bot. Worth testing: get partway
+  through the survey, then docker compose restart bot, and confirm it resumes
+  instead of going silent.
+
+  All 31 tests still green, ruff/black clean, DEVLOG/README/PROGRESS updated
+  with the real root-cause writeup.
+
+✻ Cogitated for 7m 37s
